@@ -43,71 +43,52 @@ Para datos que solo afectan a un componente:
 
 ### Estado global (Context API)
 Para datos que necesitan varios componentes a la vez:
-- Familia activa o logueada
+- Familia activa o logueada (sesión de Firebase Auth)
 - Configuración de la copropiedad (número de familias, tarifas, temporadas)
 - Notificaciones pendientes
 
-### API como fuente de verdad
-Los datos principales viven en el backend y se consultan a través de la API:
+### Firebase como fuente de verdad
+Los datos principales viven en Firestore y se sincronizan en tiempo real:
 - Turnos y rotaciones
 - Ocupaciones registradas
+- Cesiones entre familias
 - Gastos comunes
 - Incidencias y estado de la vivienda
 
 ---
 
-## 4. Diseño del backend y endpoints REST
+## 4. Arquitectura Firebase — Colecciones en Firestore
 
-### Configuración
-| Método | Endpoint | Descripción |
-|---|---|---|
-| GET | /api/v1/config | Obtener configuración de la copropiedad |
-| POST | /api/v1/config | Crear o actualizar configuración |
+En lugar de una API REST tradicional con Node.js + Express, Turnstay utiliza **Firebase** como backend. Las colecciones en Firestore sustituyen a los endpoints REST:
 
-### Turnos
-| Método | Endpoint | Descripción |
-|---|---|---|
-| GET | /api/v1/turnos/:año | Obtener calendario de turnos por año |
+| Colección | Descripción |
+|---|---|
+| `config` | Configuración de la copropiedad |
+| `turnos` | Calendario de turnos por año |
+| `ocupaciones` | Registro de ocupaciones reales |
+| `cesiones` | Cesiones de días entre familias |
+| `gastos` | Gastos comunes del fondo |
+| `incidencias` | Incidencias y estado de la vivienda |
+| `notificaciones` | Notificaciones por familia |
 
-### Ocupaciones
-| Método | Endpoint | Descripción |
-|---|---|---|
-| GET | /api/v1/ocupaciones | Listar ocupaciones |
-| POST | /api/v1/ocupaciones | Registrar nueva ocupación |
-| DELETE | /api/v1/ocupaciones/:id | Eliminar ocupación |
+### Firebase Authentication
+La autenticación de usuarios se gestiona con **Firebase Authentication**. Cada familia tiene sus propias credenciales de acceso y la sesión se mantiene automáticamente.
 
-### Cesiones
-| Método | Endpoint | Descripción |
-|---|---|---|
-| GET | /api/v1/cesiones | Listar cesiones |
-| POST | /api/v1/cesiones | Crear nueva cesión |
-| PATCH | /api/v1/cesiones/:id | Actualizar estado: aceptar o rechazar |
+### Firestore — Operaciones principales
 
-### Gastos
-| Método | Endpoint | Descripción |
-|---|---|---|
-| GET | /api/v1/gastos | Listar gastos |
-| POST | /api/v1/gastos | Registrar gasto |
-| DELETE | /api/v1/gastos/:id | Eliminar gasto |
-
-### Incidencias
-| Método | Endpoint | Descripción |
-|---|---|---|
-| GET | /api/v1/incidencias | Listar incidencias |
-| POST | /api/v1/incidencias | Crear incidencia |
-| PATCH | /api/v1/incidencias/:id | Actualizar estado de la incidencia |
-
-### Notificaciones
-| Método | Endpoint | Descripción |
-|---|---|---|
-| GET | /api/v1/notificaciones | Listar notificaciones |
-| PATCH | /api/v1/notificaciones/:id | Marcar notificación como leída |
+| Operación | Equivalente REST anterior |
+|---|---|
+| `getDocs(collection)` | GET /api/v1/recurso |
+| `addDoc(collection, data)` | POST /api/v1/recurso |
+| `updateDoc(doc, data)` | PATCH /api/v1/recurso/:id |
+| `deleteDoc(doc)` | DELETE /api/v1/recurso/:id |
+| `onSnapshot(query)` | Tiempo real — sin equivalente en REST |
 
 ---
 
-## 5. Datos en el servidor vs datos en el cliente
+## 5. Datos en Firebase vs datos en el cliente
 
-### Datos en el servidor (backend)
+### Datos en Firebase (Firestore)
 - Turnos y rotaciones anuales
 - Ocupaciones registradas
 - Cesiones entre familias
@@ -120,13 +101,11 @@ Los datos principales viven en el backend y se consultan a través de la API:
 - Estado de formularios (lo que el usuario está escribiendo)
 - Modales abiertos o cerrados
 - Año seleccionado en el histórico
-- Familia activa en sesión (LocalStorage)
+- Sesión activa gestionada por Firebase Auth
 
 ---
 
 ## 6. Diagrama del flujo de datos
-
-El flujo siempre sigue esta dirección:
 
 ```
 Usuario
@@ -134,31 +113,18 @@ Usuario
    | acción (click, formulario)
    ↓
 Frontend — React + TypeScript + Tailwind
-   |  src/api/client.ts — cliente tipado
+   |  src/api/client.ts — cliente tipado con Firebase SDK
    |
-   | fetch / axios → HTTP Request
+   | Firebase SDK (lectura/escritura)
    ↓
-API REST — /api/v1/
-   | turnos · ocupaciones · cesiones
-   | gastos · incidencias · notificaciones
-   |
-   | llama a servicios
-   ↓
-Backend — Node.js + Express
-   | routes → controllers → services
-   | Lógica de rotación y negocio
-   |
-   ↓
-Datos en memoria / LocalStorage
-   |
-   ↑ respuesta JSON tipada
-   |
-API REST
-   |
-   ↑ datos tipados
-   |
-Frontend — gestiona 3 estados de red:
-   ⏳ Loading  — cargando datos
+Firebase
+   ├── Firebase Authentication — gestión de sesión y acceso
+   └── Firestore — base de datos NoSQL en tiempo real
+         |
+         ↑ onSnapshot — sincronización en tiempo real
+         |
+Frontend — gestiona 3 estados:
+   ⏳ Loading  — cargando datos de Firestore
    ✓ Success  — datos recibidos y renderizados
    ✗ Error    — mensaje de error al usuario
    |
@@ -169,10 +135,40 @@ Usuario
 
 ---
 
-## Decisiones de arquitectura
+## 7. Calendario de turnos
 
-- Se usa **arquitectura por capas** en el backend: routes → controllers → services
-- El cliente de API en el frontend es **tipado con TypeScript** para garantizar consistencia entre frontend y backend
-- La **Context API** gestiona el estado global sin necesidad de librerías externas como Redux
-- Los datos que viven en el backend son la **única fuente de verdad** — no se duplican en LocalStorage salvo la sesión de la familia activa
-- La app es **configurable**: número de familias, tarifas y temporadas son parámetros, no valores fijos
+Para mostrar el calendario de turnos se evaluaron tres opciones:
+
+| Opción | Pros | Contras |
+|---|---|---|
+| **Google Calendar API** | Integración nativa con Google | Configuración compleja, requiere OAuth |
+| **FullCalendar** | Muy completo, muchas vistas | Algo pesado para una microapp |
+| **React Big Calendar** | Ligero, fácil de integrar en React | Menos funcionalidades avanzadas |
+
+Se investigarán **FullCalendar** y **React Big Calendar** para decidir cuál encaja mejor con Turnstay antes de implementar el componente CalendarView.
+
+---
+
+## 8. Decisiones de arquitectura
+
+### ¿Por qué Firebase en lugar de Node.js + Express?
+
+El ejercicio pedía originalmente un backend con Node.js + Express. Sin embargo, tras la revisión con el tutor y el análisis del proyecto, se decidió usar Firebase por las siguientes razones:
+
+- **Autenticación lista para usar** — Firebase Authentication resuelve el login de cada familia de forma segura en pocas líneas de código. Implementarlo desde cero con Express requeriría gestionar tokens JWT, sesiones y seguridad manualmente, lo que añade complejidad sin valor añadido para este proyecto.
+- **Tiempo real incorporado** — Firestore permite que todas las familias vean los cambios al instante sin recargar la página. Si una familia registra una ocupación, las demás lo ven de inmediato. Esto es especialmente valioso para una app compartida entre varias familias.
+- **Sin servidor que mantener** — Firebase es serverless, lo que elimina la necesidad de configurar, desplegar y mantener un servidor Express en Railway o Render. Reduce la complejidad operativa considerablemente.
+- **Escalabilidad gratuita** — El plan Spark de Firebase es gratuito y más que suficiente para el volumen de datos de una copropiedad de hasta 12 familias.
+- **Validado por el tutor** — El tutor del bootcamp recomendó Firebase específicamente para este proyecto, confirmando que es la tecnología más adecuada para las necesidades de Turnstay.
+
+### ¿Por qué Firestore y no una base de datos relacional?
+
+Los datos de Turnstay son documentos independientes — cada ocupación, cesión o incidencia es una entidad con sus propios campos. No hay relaciones complejas entre tablas que justifiquen una base de datos relacional como PostgreSQL. Firestore, al ser NoSQL, encaja perfectamente con esta estructura de datos.
+
+### ¿Por qué no Supabase o MongoDB?
+
+El tutor mencionó Supabase y MongoDB como alternativas. Se optó por Firebase porque integra en un solo producto la autenticación, la base de datos y el tiempo real, lo que simplifica la arquitectura. Supabase es una excelente alternativa (especialmente si se necesita SQL) y MongoDB es potente para datos no estructurados, pero Firebase ofrece la solución más completa para los requisitos concretos de Turnstay.
+
+### ¿Por qué FullCalendar o React Big Calendar en lugar de Google Calendar API?
+
+Google Calendar API requiere configuración OAuth compleja y está pensada para integrarse con el calendario personal de cada usuario. Para Turnstay no necesitamos sincronizar con Google Calendar — necesitamos mostrar un calendario propio dentro de la app. FullCalendar y React Big Calendar son librerías React que resuelven esto de forma más sencilla y directa.
