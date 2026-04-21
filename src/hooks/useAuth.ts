@@ -3,9 +3,9 @@ import { auth } from '../api/firebase'
 import {
   signInWithEmailAndPassword,
   signOut,
-  onAuthStateChanged,
-  User
+  onAuthStateChanged
 } from 'firebase/auth'
+import type { User } from 'firebase/auth'
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null)
