@@ -39,7 +39,7 @@ export function useTurnos() {
 
   const calcularRotacion = (indiceBase: number, año: number) => {
     const rotacion = (año - AÑO_BASE) % FAMILIAS.length
-    return (indiceBase + rotacion) % FAMILIAS.length
+    return (indiceBase - rotacion + FAMILIAS.length) % FAMILIAS.length
   }
 
   const turnosBaja: Turno[] = TEMPORADA_BAJA.map((periodo, index) => ({

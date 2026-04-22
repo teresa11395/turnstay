@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthContext } from './context/AuthContext'
+import Layout from './components/Layout'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import CalendarioPage from './pages/CalendarioPage'
@@ -16,7 +17,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuthContext()
   if (loading) return <LoadingSpinner />
   if (!user) return <Navigate to="/login" />
-  return <>{children}</>
+  return <Layout>{children}</Layout>
 }
 
 export default function App() {
