@@ -18,6 +18,7 @@ export interface Incidencia {
   estado: 'pendiente' | 'en progreso' | 'resuelta'
   familia: string
   fecha: string
+  resolucion?: string
 }
 
 export function useIncidencias() {
