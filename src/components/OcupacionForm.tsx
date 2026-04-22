@@ -23,7 +23,10 @@ export default function OcupacionForm({ onClose }: { onClose: () => void }) {
   }
 
   const dias = calcularDias()
-  const tarifaDiaria = config?.tarifaDiaria ?? 12
+
+  // 6€/persona/día con mínimo de 12€/día
+  const tarifaPorPersonas = personas * 6
+  const tarifaDiaria = Math.max(tarifaPorPersonas, 12)
   const coste = dias * tarifaDiaria
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -122,10 +125,18 @@ export default function OcupacionForm({ onClose }: { onClose: () => void }) {
         </div>
 
         {dias > 0 && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-700">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-700 space-y-1">
             <p><span className="font-medium">Días:</span> {dias}</p>
-            <p><span className="font-medium">Tarifa:</span> {tarifaDiaria}€/día</p>
-            <p><span className="font-medium">Coste total:</span> {coste}€</p>
+            <p>
+              <span className="font-medium">Tarifa:</span>{' '}
+              {personas * 6 < 12
+                ? `mínimo 12€/día (${personas} persona${personas > 1 ? 's' : ''} × 6€ = ${personas * 6}€ < mínimo)`
+                : `${personas} persona${personas > 1 ? 's' : ''} × 6€ = ${tarifaDiaria}€/día`
+              }
+            </p>
+            <p className="font-semibold text-blue-800">
+              Coste total: {coste}€
+            </p>
           </div>
         )}
 
