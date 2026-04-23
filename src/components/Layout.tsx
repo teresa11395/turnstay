@@ -25,11 +25,19 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Sidebar desktop */}
       <aside className="hidden md:flex w-64 bg-white border-r border-gray-200 flex-col fixed h-full z-30">
-        <div className="px-6 py-5 border-b border-gray-100">
-          <h1 className="text-xl font-bold text-gray-900">TurnStay</h1>
-          <p className="text-xs text-gray-400 mt-0.5">Copropiedad vacacional</p>
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">TurnStay</h1>
+            <p className="text-xs text-gray-400 mt-0.5">Copropiedad vacacional</p>
+          </div>
+          <button
+            onClick={logout}
+            className="text-xs text-red-500 border border-red-200 px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition-colors font-medium"
+          >
+            Salir
+          </button>
         </div>
-        <nav className="flex-1 px-3 py-4 space-y-1">
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path
             return (
@@ -48,15 +56,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             )
           })}
         </nav>
-        <div className="px-4 py-4 border-t border-gray-100">
-          <p className="text-xs font-medium text-gray-700 truncate mb-0.5">{user?.email}</p>
-          <p className="text-xs text-gray-400 mb-3">Copropietario</p>
-          <button
-            onClick={logout}
-            className="w-full py-2 px-3 text-sm text-red-500 border border-red-200 rounded-lg hover:bg-red-50 transition-colors font-medium"
-          >
-            Cerrar sesión
-          </button>
+        <div className="px-4 py-3 border-t border-gray-100">
+          <p className="text-xs font-medium text-gray-700 truncate">{user?.email}</p>
+          <p className="text-xs text-gray-400">Copropietario</p>
         </div>
       </aside>
 
