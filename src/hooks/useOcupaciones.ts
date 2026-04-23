@@ -5,10 +5,20 @@ import {
   getDocs,
   addDoc,
   deleteDoc,
+  updateDoc,
   doc,
   query,
   orderBy
 } from 'firebase/firestore'
+
+export interface EntregaTurno {
+  casaLimpia: boolean
+  jardinCuidado: boolean
+  bañosLimpios: boolean
+  cocinaLimpia: boolean
+  observaciones?: string
+  fecha: string
+}
 
 export interface Ocupacion {
   id?: string
@@ -18,6 +28,7 @@ export interface Ocupacion {
   personas: number
   dias: number
   coste: number
+  entrega?: EntregaTurno
 }
 
 export function useOcupaciones() {
@@ -53,6 +64,16 @@ export function useOcupaciones() {
     }
   }
 
+  const updateOcupacion = async (id: string, data: Partial<Ocupacion>) => {
+    try {
+      setError(null)
+      await updateDoc(doc(db, 'ocupaciones', id), data)
+      await fetchOcupaciones()
+    } catch (err) {
+      setError('Error al actualizar la ocupación')
+    }
+  }
+
   const deleteOcupacion = async (id: string) => {
     try {
       setError(null)
@@ -67,5 +88,5 @@ export function useOcupaciones() {
     fetchOcupaciones()
   }, [])
 
-  return { ocupaciones, loading, error, addOcupacion, deleteOcupacion, refetch: fetchOcupaciones }
+  return { ocupaciones, loading, error, addOcupacion, updateOcupacion, deleteOcupacion, refetch: fetchOcupaciones }
 }
