@@ -19,6 +19,7 @@ export interface Incidencia {
   familia: string
   fecha: string
   resolucion?: string
+  costeReparacion?: number
 }
 
 export function useIncidencias() {
