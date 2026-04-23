@@ -1,23 +1,26 @@
 import { useState } from 'react'
 import { useOcupaciones } from '../hooks/useOcupaciones'
 import type { EntregaTurno } from '../hooks/useOcupaciones'
+import { useIncidencias } from '../hooks/useIncidencias'
 import OcupacionForm from '../components/OcupacionForm'
 import LoadingSpinner from '../components/LoadingSpinner'
 import ErrorMessage from '../components/ErrorMessage'
 import EmptyState from '../components/EmptyState'
 
-const ITEMS_ENTREGA = [
-  { key: 'casaLimpia',     label: 'Casa limpia',     icon: '🏠' },
-  { key: 'jardinCuidado',  label: 'Jardín cuidado',  icon: '🌿' },
-  { key: 'bañosLimpios',   label: 'Baños limpios',   icon: '🛁' },
-  { key: 'cocinaLimpia',   label: 'Cocina limpia',   icon: '🍳' },
+const ITEMS_ESTADO = [
+  { key: 'casaLimpia',    label: 'Casa limpia',    icon: '🏠' },
+  { key: 'jardinCuidado', label: 'Jardín cuidado', icon: '🌿' },
+  { key: 'bañosLimpios',  label: 'Baños limpios',  icon: '🛁' },
+  { key: 'cocinaLimpia',  label: 'Cocina limpia',  icon: '🍳' },
 ] as const
 
 export default function OcupacionesPage() {
   const { ocupaciones, loading, error, deleteOcupacion, updateOcupacion, refetch } = useOcupaciones()
+  const { addIncidencia } = useIncidencias()
   const [showForm, setShowForm] = useState(false)
-  const [entregandoId, setEntregandoId] = useState<string | null>(null)
-  const [entrega, setEntrega] = useState<Omit<EntregaTurno, 'fecha'>>({
+  const [estadoId, setEstadoId] = useState<string | null>(null)
+  const [estadoFamilia, setEstadoFamilia] = useState('')
+  const [estado, setEstado] = useState<Omit<EntregaTurno, 'fecha'>>({
     casaLimpia: true,
     jardinCuidado: true,
     bañosLimpios: true,
@@ -26,9 +29,12 @@ export default function OcupacionesPage() {
   })
   const [guardando, setGuardando] = useState(false)
 
-  const handleAbrirEntrega = (id: string) => {
-    setEntregandoId(id)
-    setEntrega({
+  const hoy = new Date().toISOString().split('T')[0]
+
+  const handleAbrirEstado = (id: string, familia: string) => {
+    setEstadoId(id)
+    setEstadoFamilia(familia)
+    setEstado({
       casaLimpia: true,
       jardinCuidado: true,
       bañosLimpios: true,
@@ -38,20 +44,37 @@ export default function OcupacionesPage() {
   }
 
   const handleToggle = (key: keyof Omit<EntregaTurno, 'fecha' | 'observaciones'>) => {
-    setEntrega(prev => ({ ...prev, [key]: !prev[key] }))
+    setEstado(prev => ({ ...prev, [key]: !prev[key] }))
   }
 
-  const handleConfirmarEntrega = async () => {
-    if (!entregandoId) return
+  const hayProblemas = () => ITEMS_ESTADO.some(item => !estado[item.key])
+
+  const handleConfirmar = async () => {
+    if (!estadoId) return
     setGuardando(true)
-    await updateOcupacion(entregandoId, {
-      entrega: {
-        ...entrega,
-        fecha: new Date().toISOString().split('T')[0],
-      }
+
+    await updateOcupacion(estadoId, {
+      entrega: { ...estado, fecha: hoy }
     })
+
+    if (hayProblemas()) {
+      const problemasTexto = ITEMS_ESTADO
+        .filter(item => !estado[item.key])
+        .map(item => item.label)
+        .join(', ')
+
+      await addIncidencia({
+        titulo: 'Casa no estaba en condiciones al llegar',
+        descripcion: `Al llegar ${estadoFamilia} encontró los siguientes problemas: ${problemasTexto}.${estado.observaciones ? ' ' + estado.observaciones : ''}`,
+        urgencia: 'media',
+        estado: 'pendiente',
+        familia: estadoFamilia,
+        fecha: hoy,
+      })
+    }
+
     setGuardando(false)
-    setEntregandoId(null)
+    setEstadoId(null)
   }
 
   if (loading) return <LoadingSpinner />
@@ -75,60 +98,65 @@ export default function OcupacionesPage() {
         </div>
       )}
 
-      {/* Modal entrega de turno */}
-      {entregandoId && (
+      {estadoId && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl border border-gray-200 p-6 w-full max-w-md mx-4 shadow-xl">
-            <h2 className="text-lg font-semibold text-gray-800 mb-1">Entrega de turno</h2>
+            <h2 className="text-lg font-semibold text-gray-800 mb-1">¿Cómo encontraste la casa?</h2>
             <p className="text-sm text-gray-500 mb-5">
-              Indica el estado en que dejas la casa para la siguiente familia.
+              Indica el estado en que encontraste la casa al llegar. Si hay algún problema se registrará como incidencia automáticamente.
             </p>
 
             <div className="space-y-3 mb-5">
-              {ITEMS_ENTREGA.map(item => (
+              {ITEMS_ESTADO.map(item => (
                 <div
                   key={item.key}
                   onClick={() => handleToggle(item.key)}
                   className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-colors ${
-                    entrega[item.key]
-                      ? 'bg-green-50 border-green-200'
-                      : 'bg-red-50 border-red-200'
+                    estado[item.key] ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
                   }`}
                 >
                   <div className="flex items-center gap-3">
                     <span className="text-xl">{item.icon}</span>
                     <span className="text-sm font-medium text-gray-700">{item.label}</span>
                   </div>
-                  <span className={`text-sm font-semibold ${entrega[item.key] ? 'text-green-600' : 'text-red-500'}`}>
-                    {entrega[item.key] ? '✓ Sí' : '✗ No'}
+                  <span className={`text-sm font-semibold ${estado[item.key] ? 'text-green-600' : 'text-red-500'}`}>
+                    {estado[item.key] ? '✓ Sí' : '✗ No'}
                   </span>
                 </div>
               ))}
             </div>
 
-            <div className="mb-5">
+            <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Observaciones <span className="text-gray-400 font-normal">— opcional</span>
               </label>
               <textarea
-                value={entrega.observaciones}
-                onChange={e => setEntrega(prev => ({ ...prev, observaciones: e.target.value }))}
+                value={estado.observaciones}
+                onChange={e => setEstado(prev => ({ ...prev, observaciones: e.target.value }))}
                 rows={2}
-                placeholder="Ej: Se ha gastado el gas, queda poca leña..."
+                placeholder="Ej: Falta papel de cocina, la terraza estaba sucia..."
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
               />
             </div>
 
+            {hayProblemas() && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+                <p className="text-xs text-amber-700 font-medium">
+                  ⚠️ Se creará una incidencia automáticamente con los problemas detectados.
+                </p>
+              </div>
+            )}
+
             <div className="flex gap-3">
               <button
-                onClick={handleConfirmarEntrega}
+                onClick={handleConfirmar}
                 disabled={guardando}
                 className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium text-sm"
               >
-                {guardando ? 'Guardando...' : 'Registrar entrega'}
+                {guardando ? 'Guardando...' : 'Registrar estado'}
               </button>
               <button
-                onClick={() => setEntregandoId(null)}
+                onClick={() => setEstadoId(null)}
                 className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700 text-sm"
               >
                 Cancelar
@@ -162,14 +190,13 @@ export default function OcupacionesPage() {
                 </button>
               </div>
 
-              {/* Entrega registrada */}
               {o.entrega ? (
                 <div className="mt-3 bg-gray-50 rounded-lg p-3 border border-gray-100">
                   <p className="text-xs font-medium text-gray-500 mb-2">
-                    Estado al salir · {o.entrega.fecha}
+                    Estado al llegar · {o.entrega.fecha}
                   </p>
                   <div className="flex flex-wrap gap-2 mb-1">
-                    {ITEMS_ENTREGA.map(item => (
+                    {ITEMS_ESTADO.map(item => (
                       <span
                         key={item.key}
                         className={`text-xs px-2 py-1 rounded-full ${
@@ -183,19 +210,17 @@ export default function OcupacionesPage() {
                     ))}
                   </div>
                   {o.entrega.observaciones && (
-                    <p className="text-xs text-gray-500 mt-1 italic">
-                      "{o.entrega.observaciones}"
-                    </p>
+                    <p className="text-xs text-gray-500 mt-1 italic">"{o.entrega.observaciones}"</p>
                   )}
                 </div>
-              ) : (
+              ) : o.fechaEntrada <= hoy ? (
                 <button
-                  onClick={() => o.id && handleAbrirEntrega(o.id)}
+                  onClick={() => o.id && handleAbrirEstado(o.id, o.familia)}
                   className="mt-2 text-xs text-blue-600 hover:text-blue-700 font-medium"
                 >
-                  + Registrar entrega de turno
+                  + ¿Cómo encontraste la casa?
                 </button>
-              )}
+              ) : null}
             </div>
           ))}
         </div>
