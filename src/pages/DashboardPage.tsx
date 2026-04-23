@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 import { useOcupaciones } from '../hooks/useOcupaciones'
 import { useGastos } from '../hooks/useGastos'
 import { useIncidencias } from '../hooks/useIncidencias'
@@ -5,8 +6,23 @@ import { useTurnos } from '../hooks/useTurnos'
 import { useAuthContext } from '../context/AuthContext'
 import LoadingSpinner from '../components/LoadingSpinner'
 
+const COLORES_FAMILIA: Record<string, string> = {
+  Charo:   'bg-orange-100 text-orange-800 hover:bg-orange-200',
+  JManuel: 'bg-blue-100 text-blue-800 hover:bg-blue-200',
+  Carlos:  'bg-emerald-100 text-emerald-800 hover:bg-emerald-200',
+  Javier:  'bg-cyan-100 text-cyan-800 hover:bg-cyan-200',
+  Tito:    'bg-amber-100 text-amber-800 hover:bg-amber-200',
+  MTere:   'bg-rose-100 text-rose-800 hover:bg-rose-200',
+  Sonso:   'bg-purple-100 text-purple-800 hover:bg-purple-200',
+  Marisa:  'bg-teal-100 text-teal-800 hover:bg-teal-200',
+}
+
+const colorFamilia = (familia: string) =>
+  COLORES_FAMILIA[familia] ?? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+
 export default function DashboardPage() {
   const { user } = useAuthContext()
+  const navigate = useNavigate()
   const { ocupaciones, loading: loadingOcupaciones } = useOcupaciones()
   const { totalGastos, loading: loadingGastos } = useGastos()
   const { incidencias, loading: loadingIncidencias } = useIncidencias()
@@ -19,8 +35,15 @@ export default function DashboardPage() {
   const incidenciasPendientes = incidencias.filter(i => i.estado !== 'resuelta')
   const ultimasIncidencias = incidenciasPendientes.slice(0, 3)
 
+  const totalRecaudado = ocupaciones.reduce((sum, o) => sum + o.coste, 0)
+  const fondoComun = totalRecaudado - totalGastos
+
+  const handleTurnoClick = (familia: string) => {
+    navigate(`/cesiones?familia=${encodeURIComponent(familia)}`)
+  }
+
   return (
-    <div className="p-8">
+    <div className="p-6 md:p-8">
 
       {/* Header */}
       <div className="mb-8">
@@ -29,14 +52,16 @@ export default function DashboardPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <p className="text-sm text-gray-500 mb-1">Ocupaciones registradas</p>
           <p className="text-3xl font-semibold text-gray-900">{ocupaciones.length}</p>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <p className="text-sm text-gray-500 mb-1">Fondo común</p>
-          <p className="text-3xl font-semibold text-gray-900">{totalGastos.toFixed(0)}€</p>
+          <p className={`text-3xl font-semibold ${fondoComun >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+            {fondoComun >= 0 ? '+' : ''}{fondoComun.toFixed(0)}€
+          </p>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <p className="text-sm text-gray-500 mb-1">Incidencias pendientes</p>
@@ -45,10 +70,10 @@ export default function DashboardPage() {
       </div>
 
       {/* Two columns */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
         {/* Últimas ocupaciones */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
           <h2 className="text-sm font-semibold text-gray-700 mb-4">Últimas ocupaciones</h2>
           {ultimasOcupaciones.length === 0 ? (
             <p className="text-sm text-gray-400">Sin ocupaciones registradas</p>
@@ -68,7 +93,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Incidencias pendientes */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
           <h2 className="text-sm font-semibold text-gray-700 mb-4">Incidencias pendientes</h2>
           {ultimasIncidencias.length === 0 ? (
             <p className="text-sm text-gray-400">No hay incidencias pendientes</p>
@@ -94,9 +119,12 @@ export default function DashboardPage() {
         </div>
 
         {/* Turnos del año */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6 md:col-span-2">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-gray-700">Turnos {año}</h2>
+        <div className="bg-white rounded-xl border border-gray-200 p-5 md:col-span-2">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-700">Turnos {año}</h2>
+              <p className="text-xs text-gray-400 mt-0.5">Pulsa un turno para solicitar una cesión</p>
+            </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setAño(año - 1)}
@@ -112,12 +140,17 @@ export default function DashboardPage() {
               </button>
             </div>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
             {turnosAño.map((t, index) => (
-              <div key={index} className="bg-gray-50 rounded-lg p-3">
-                <p className="text-xs text-gray-400 mb-1">{t.periodo}</p>
-                <p className="text-sm font-medium text-gray-800">{t.familia}</p>
-              </div>
+              <button
+                key={index}
+                onClick={() => handleTurnoClick(t.familia)}
+                className={`rounded-lg p-3 text-left transition-colors cursor-pointer ${colorFamilia(t.familia)}`}
+                title={`Solicitar cesión a ${t.familia}`}
+              >
+                <p className="text-xs opacity-70 mb-0.5">{t.periodo}</p>
+                <p className="text-sm font-medium">{t.familia}</p>
+              </button>
             ))}
           </div>
         </div>

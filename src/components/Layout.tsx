@@ -4,7 +4,6 @@ import { useAuthContext } from '../context/AuthContext'
 
 const navItems = [
   { path: '/', label: 'Panel general', icon: '🏠' },
-  { path: '/calendario', label: 'Calendario', icon: '📅' },
   { path: '/ocupaciones', label: 'Ocupaciones', icon: '🛎️' },
   { path: '/gastos', label: 'Gastos', icon: '💰' },
   { path: '/incidencias', label: 'Incidencias', icon: '🔧' },
