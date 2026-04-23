@@ -11,6 +11,7 @@ export default function IncidenciasPage() {
   const [showForm, setShowForm] = useState(false)
   const [resolviendoId, setResolviendoId] = useState<string | null>(null)
   const [resolucion, setResolucion] = useState('')
+  const [costeReparacion, setCosteReparacion] = useState<number>(0)
   const [guardando, setGuardando] = useState(false)
 
   const handleMarcarEnProgreso = async (id: string) => {
@@ -20,6 +21,7 @@ export default function IncidenciasPage() {
   const handleAbrirResolucion = (id: string) => {
     setResolviendoId(id)
     setResolucion('')
+    setCosteReparacion(0)
   }
 
   const handleConfirmarResolucion = async () => {
@@ -29,17 +31,19 @@ export default function IncidenciasPage() {
     await updateIncidencia(resolviendoId, {
       estado: 'resuelta',
       resolucion: resolucion.trim(),
+      costeReparacion: costeReparacion > 0 ? costeReparacion : 0,
     })
     setGuardando(false)
     setResolviendoId(null)
     setResolucion('')
+    setCosteReparacion(0)
   }
 
   if (loading) return <LoadingSpinner />
   if (error) return <ErrorMessage message={error} onRetry={refetch} />
 
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-800">Estado de la vivienda</h1>
         <button
@@ -62,17 +66,42 @@ export default function IncidenciasPage() {
           <div className="bg-white rounded-xl border border-gray-200 p-6 w-full max-w-md mx-4 shadow-xl">
             <h2 className="text-lg font-semibold text-gray-800 mb-3">¿Cómo se resolvió?</h2>
             <p className="text-sm text-gray-500 mb-4">
-              Describe brevemente la solución aplicada para que quede registrada.
+              Describe la solución aplicada para que quede registrada.
             </p>
-            <textarea
-              value={resolucion}
-              onChange={(e) => setResolucion(e.target.value)}
-              rows={3}
-              placeholder="Ej: Se cambió la bombona de butano por una nueva..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm mb-4"
-              autoFocus
-            />
-            <div className="flex gap-3">
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Descripción de la resolución
+                </label>
+                <textarea
+                  value={resolucion}
+                  onChange={(e) => setResolucion(e.target.value)}
+                  rows={3}
+                  placeholder="Ej: Fontanero reparó la gotera del baño sellando la junta..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Coste de la reparación (€)
+                  <span className="text-gray-400 font-normal ml-1">— opcional</span>
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  value={costeReparacion}
+                  onChange={(e) => setCosteReparacion(Number(e.target.value))}
+                  placeholder="0"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                />
+                <p className="text-xs text-gray-400 mt-1">Deja en 0 si no hubo coste</p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-5">
               <button
                 onClick={handleConfirmarResolucion}
                 disabled={!resolucion.trim() || guardando}
@@ -110,12 +139,17 @@ export default function IncidenciasPage() {
               </div>
               <p className="text-sm text-gray-500 mb-2">{i.descripcion}</p>
 
-              {/* Mostrar resolución si existe */}
+              {/* Resolución */}
               {i.resolucion && (
                 <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 mb-2">
                   <p className="text-xs text-green-700">
                     <span className="font-medium">Resolución:</span> {i.resolucion}
                   </p>
+                  {i.costeReparacion !== undefined && i.costeReparacion > 0 && (
+                    <p className="text-xs text-green-700 mt-0.5">
+                      <span className="font-medium">Coste:</span> {i.costeReparacion}€
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -123,8 +157,6 @@ export default function IncidenciasPage() {
                 <p className="text-xs text-gray-400">
                   {i.fecha} · {i.familia} · Urgencia: {i.urgencia}
                 </p>
-
-                {/* Botones de acción según estado */}
                 <div className="flex gap-2">
                   {i.estado === 'pendiente' && (
                     <button
