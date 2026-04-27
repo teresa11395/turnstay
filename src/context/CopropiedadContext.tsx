@@ -46,7 +46,6 @@ export function CopropiedadProvider({ children }: { children: ReactNode }) {
         if (docSnap.exists()) {
           setPerfil(docSnap.data() as PerfilUsuario)
         } else {
-          // Usuario nuevo — sin copropiedad aún
           const perfilNuevo: PerfilUsuario = {
             uid: user.uid,
             email: user.email ?? '',
@@ -76,7 +75,6 @@ export function CopropiedadProvider({ children }: { children: ReactNode }) {
 
     const copropiedadId = `cop_${Date.now()}`
 
-    // Crear la copropiedad en Firestore
     await setDoc(doc(db, 'copropiedades', copropiedadId, 'config', 'general'), {
       nombre,
       familias,
@@ -84,10 +82,9 @@ export function CopropiedadProvider({ children }: { children: ReactNode }) {
       tarifaDiaria: 12,
       cuotaAnual: 0,
       creadaEn: new Date().toISOString(),
-      codigo: copropiedadId.slice(-6).toUpperCase(), // código de 6 caracteres para invitar
+      codigo: copropiedadId.slice(-6).toUpperCase(),
     })
 
-    // Actualizar perfil del usuario como admin
     const perfilActualizado: PerfilUsuario = {
       ...perfil,
       copropiedadId,
@@ -104,14 +101,6 @@ export function CopropiedadProvider({ children }: { children: ReactNode }) {
   const unirseACopropiedad = async (codigo: string, familia: string) => {
     if (!user || !perfil) throw new Error('No hay usuario autenticado')
 
-    // Buscar copropiedad por código
-    const { getDocs, collection, query, where } = await import('firebase/firestore')
-    const q = query(
-      collection(db, 'copropiedades'),
-      where('config.general.codigo', '==', codigo.toUpperCase())
-    )
-
-    // Simplificado: el código ES el copropiedadId recortado
     const copropiedadId = `cop_${codigo.toLowerCase()}`
 
     const perfilActualizado: PerfilUsuario = {
