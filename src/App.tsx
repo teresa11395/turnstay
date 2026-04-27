@@ -1,9 +1,10 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthContext } from './context/AuthContext'
+import { useCopropiedad } from './context/CopropiedadContext'
 import Layout from './components/Layout'
 import LoginPage from './pages/LoginPage'
+import OnboardingPage from './pages/OnboardingPage'
 import DashboardPage from './pages/DashboardPage'
-import CalendarioPage from './pages/CalendarioPage'
 import OcupacionesPage from './pages/OcupacionesPage'
 import GastosPage from './pages/GastosPage'
 import IncidenciasPage from './pages/IncidenciasPage'
@@ -14,9 +15,13 @@ import NotFoundPage from './pages/NotFoundPage'
 import LoadingSpinner from './components/LoadingSpinner'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuthContext()
-  if (loading) return <LoadingSpinner />
+  const { user, loading: loadingAuth } = useAuthContext()
+  const { tieneCopropiedad, loading: loadingCop } = useCopropiedad()
+
+  if (loadingAuth || loadingCop) return <LoadingSpinner />
   if (!user) return <Navigate to="/login" />
+  if (!tieneCopropiedad) return <Navigate to="/onboarding" />
+
   return <Layout>{children}</Layout>
 }
 
@@ -25,8 +30,8 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/onboarding" element={<OnboardingPage />} />
         <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-        <Route path="/calendario" element={<ProtectedRoute><CalendarioPage /></ProtectedRoute>} />
         <Route path="/ocupaciones" element={<ProtectedRoute><OcupacionesPage /></ProtectedRoute>} />
         <Route path="/gastos" element={<ProtectedRoute><GastosPage /></ProtectedRoute>} />
         <Route path="/incidencias" element={<ProtectedRoute><IncidenciasPage /></ProtectedRoute>} />
