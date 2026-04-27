@@ -1,14 +1,7 @@
 import { useState, useEffect } from 'react'
 import { db } from '../api/firebase'
-import {
-  collection,
-  getDocs,
-  addDoc,
-  updateDoc,
-  doc,
-  query,
-  orderBy
-} from 'firebase/firestore'
+import { collection, getDocs, addDoc, updateDoc, doc, query, orderBy } from 'firebase/firestore'
+import { useCopropiedad } from '../context/CopropiedadContext'
 
 export interface Incidencia {
   id?: string
@@ -23,21 +16,20 @@ export interface Incidencia {
 }
 
 export function useIncidencias() {
+  const { perfil } = useCopropiedad()
+  const copropiedadId = perfil?.copropiedadId
   const [incidencias, setIncidencias] = useState<Incidencia[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const fetchIncidencias = async () => {
+    if (!copropiedadId) return
     try {
       setLoading(true)
       setError(null)
-      const q = query(collection(db, 'incidencias'), orderBy('fecha', 'desc'))
+      const q = query(collection(db, 'copropiedades', copropiedadId, 'incidencias'), orderBy('fecha', 'desc'))
       const snapshot = await getDocs(q)
-      const data = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Incidencia[]
-      setIncidencias(data)
+      setIncidencias(snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as Incidencia[])
     } catch (err) {
       setError('Error al cargar las incidencias')
     } finally {
@@ -46,28 +38,22 @@ export function useIncidencias() {
   }
 
   const addIncidencia = async (incidencia: Omit<Incidencia, 'id'>) => {
+    if (!copropiedadId) return
     try {
-      setError(null)
-      await addDoc(collection(db, 'incidencias'), incidencia)
+      await addDoc(collection(db, 'copropiedades', copropiedadId, 'incidencias'), incidencia)
       await fetchIncidencias()
-    } catch (err) {
-      setError('Error al registrar la incidencia')
-    }
+    } catch { setError('Error al registrar la incidencia') }
   }
 
   const updateIncidencia = async (id: string, data: Partial<Incidencia>) => {
+    if (!copropiedadId) return
     try {
-      setError(null)
-      await updateDoc(doc(db, 'incidencias', id), data)
+      await updateDoc(doc(db, 'copropiedades', copropiedadId, 'incidencias', id), data)
       await fetchIncidencias()
-    } catch (err) {
-      setError('Error al actualizar la incidencia')
-    }
+    } catch { setError('Error al actualizar la incidencia') }
   }
 
-  useEffect(() => {
-    fetchIncidencias()
-  }, [])
+  useEffect(() => { if (copropiedadId) fetchIncidencias() }, [copropiedadId])
 
   return { incidencias, loading, error, addIncidencia, updateIncidencia, refetch: fetchIncidencias }
 }

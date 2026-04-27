@@ -1,15 +1,7 @@
 import { useState, useEffect } from 'react'
 import { db } from '../api/firebase'
-import {
-  collection,
-  getDocs,
-  addDoc,
-  deleteDoc,
-  updateDoc,
-  doc,
-  query,
-  orderBy
-} from 'firebase/firestore'
+import { collection, getDocs, addDoc, deleteDoc, updateDoc, doc, query, orderBy } from 'firebase/firestore'
+import { useCopropiedad } from '../context/CopropiedadContext'
 
 export interface EntregaTurno {
   casaLimpia: boolean
@@ -32,21 +24,20 @@ export interface Ocupacion {
 }
 
 export function useOcupaciones() {
+  const { perfil } = useCopropiedad()
+  const copropiedadId = perfil?.copropiedadId
   const [ocupaciones, setOcupaciones] = useState<Ocupacion[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const fetchOcupaciones = async () => {
+    if (!copropiedadId) return
     try {
       setLoading(true)
       setError(null)
-      const q = query(collection(db, 'ocupaciones'), orderBy('fechaEntrada', 'desc'))
+      const q = query(collection(db, 'copropiedades', copropiedadId, 'ocupaciones'), orderBy('fechaEntrada', 'desc'))
       const snapshot = await getDocs(q)
-      const data = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Ocupacion[]
-      setOcupaciones(data)
+      setOcupaciones(snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as Ocupacion[])
     } catch (err) {
       setError('Error al cargar las ocupaciones')
     } finally {
@@ -55,38 +46,30 @@ export function useOcupaciones() {
   }
 
   const addOcupacion = async (ocupacion: Omit<Ocupacion, 'id'>) => {
+    if (!copropiedadId) return
     try {
-      setError(null)
-      await addDoc(collection(db, 'ocupaciones'), ocupacion)
+      await addDoc(collection(db, 'copropiedades', copropiedadId, 'ocupaciones'), ocupacion)
       await fetchOcupaciones()
-    } catch (err) {
-      setError('Error al registrar la ocupación')
-    }
+    } catch { setError('Error al registrar la ocupación') }
   }
 
   const updateOcupacion = async (id: string, data: Partial<Ocupacion>) => {
+    if (!copropiedadId) return
     try {
-      setError(null)
-      await updateDoc(doc(db, 'ocupaciones', id), data)
+      await updateDoc(doc(db, 'copropiedades', copropiedadId, 'ocupaciones', id), data)
       await fetchOcupaciones()
-    } catch (err) {
-      setError('Error al actualizar la ocupación')
-    }
+    } catch { setError('Error al actualizar la ocupación') }
   }
 
   const deleteOcupacion = async (id: string) => {
+    if (!copropiedadId) return
     try {
-      setError(null)
-      await deleteDoc(doc(db, 'ocupaciones', id))
+      await deleteDoc(doc(db, 'copropiedades', copropiedadId, 'ocupaciones', id))
       await fetchOcupaciones()
-    } catch (err) {
-      setError('Error al eliminar la ocupación')
-    }
+    } catch { setError('Error al eliminar la ocupación') }
   }
 
-  useEffect(() => {
-    fetchOcupaciones()
-  }, [])
+  useEffect(() => { if (copropiedadId) fetchOcupaciones() }, [copropiedadId])
 
   return { ocupaciones, loading, error, addOcupacion, updateOcupacion, deleteOcupacion, refetch: fetchOcupaciones }
 }
