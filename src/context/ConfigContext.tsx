@@ -2,12 +2,14 @@ import { createContext, useContext, useState, useEffect } from 'react'
 import type { ReactNode } from 'react'
 import { db } from '../api/firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { useCopropiedad } from './CopropiedadContext'
 
-interface Config {
+export interface Config {
   nombrePropiedad: string
   familias: string[]
   tarifaDiaria: number
   cuotaAnual: number
+  sistemaTurnos?: 'rotacion' | 'calendario' | 'mixto'
 }
 
 interface ConfigContextType {
@@ -22,19 +24,30 @@ const defaultConfig: Config = {
   familias: ['Charo', 'JManuel', 'Carlos', 'Javier', 'Tito', 'MTere', 'Sonso', 'Marisa'],
   tarifaDiaria: 12,
   cuotaAnual: 0,
+  sistemaTurnos: 'rotacion',
 }
 
 const ConfigContext = createContext<ConfigContextType | null>(null)
 
 export function ConfigProvider({ children }: { children: ReactNode }) {
+  const { perfil } = useCopropiedad()
+  const copropiedadId = perfil?.copropiedadId
   const [config, setConfig] = useState<Config | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (!copropiedadId) {
+      setConfig(defaultConfig)
+      setLoading(false)
+      return
+    }
+
     const fetchConfig = async () => {
       try {
-        const docRef = doc(db, 'config', 'general')
+        setLoading(true)
+        setError(null)
+        const docRef = doc(db, 'copropiedades', copropiedadId, 'config', 'general')
         const docSnap = await getDoc(docRef)
         if (docSnap.exists()) {
           setConfig(docSnap.data() as Config)
@@ -48,13 +61,15 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         setLoading(false)
       }
     }
+
     fetchConfig()
-  }, [])
+  }, [copropiedadId])
 
   const updateConfig = async (newConfig: Config) => {
+    if (!copropiedadId) return
     try {
       setError(null)
-      await setDoc(doc(db, 'config', 'general'), newConfig)
+      await setDoc(doc(db, 'copropiedades', copropiedadId, 'config', 'general'), newConfig)
       setConfig(newConfig)
     } catch (err) {
       setError('Error al guardar la configuración')
