@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useCopropiedad } from '../context/CopropiedadContext'
 
 type Vista = 'inicio' | 'crear' | 'unirse'
@@ -15,6 +15,7 @@ export default function OnboardingPage() {
   const [sistemaTurnos, setSistemaTurnos] = useState<'rotacion' | 'calendario' | 'mixto'>('calendario')
   const [creando, setCreando] = useState(false)
   const [errorLocal, setErrorLocal] = useState<string | null>(null)
+  const enviandoRef = useRef(false)
 
   // Unirse
   const [codigo, setCodigo] = useState('')
@@ -33,17 +34,19 @@ export default function OnboardingPage() {
 
   const handleCrear = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (enviandoRef.current) return
     if (!nombre.trim()) return setErrorLocal('El nombre es obligatorio')
     const familiasValidas = familias.filter(f => f.trim())
     if (familiasValidas.length === 0) return setErrorLocal('Añade al menos una familia')
 
+    enviandoRef.current = true
     setCreando(true)
     setErrorLocal(null)
     try {
       await crearCopropiedad(nombre.trim(), familiasValidas, sistemaTurnos)
     } catch (err) {
       setErrorLocal('Error al crear la copropiedad')
-    } finally {
+      enviandoRef.current = false
       setCreando(false)
     }
   }
@@ -120,6 +123,7 @@ export default function OnboardingPage() {
                   onChange={e => setNombre(e.target.value)}
                   placeholder="Ej: Casa de la playa, Chalet Sierra..."
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  disabled={creando}
                 />
               </div>
 
@@ -135,8 +139,10 @@ export default function OnboardingPage() {
                   ].map(op => (
                     <div
                       key={op.value}
-                      onClick={() => setSistemaTurnos(op.value as any)}
-                      className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                      onClick={() => !creando && setSistemaTurnos(op.value as any)}
+                      className={`p-3 rounded-lg border transition-colors ${
+                        creando ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                      } ${
                         sistemaTurnos === op.value
                           ? 'bg-blue-50 border-blue-300'
                           : 'border-gray-200 hover:bg-gray-50'
@@ -162,12 +168,14 @@ export default function OnboardingPage() {
                         onChange={e => handleCambiarFamilia(i, e.target.value)}
                         placeholder={`Ej: ${FAMILIAS_EJEMPLO[i] ?? 'Familia ' + (i + 1)}`}
                         className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                        disabled={creando}
                       />
                       {familias.length > 1 && (
                         <button
                           type="button"
                           onClick={() => handleEliminarFamilia(i)}
-                          className="text-gray-400 hover:text-red-500 px-2"
+                          disabled={creando}
+                          className="text-gray-400 hover:text-red-500 px-2 disabled:opacity-50"
                         >
                           ×
                         </button>
@@ -177,7 +185,8 @@ export default function OnboardingPage() {
                   <button
                     type="button"
                     onClick={handleAñadirFamilia}
-                    className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                    disabled={creando}
+                    className="text-sm text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50"
                   >
                     + Añadir familia
                   </button>
@@ -191,9 +200,17 @@ export default function OnboardingPage() {
               <button
                 type="submit"
                 disabled={creando}
-                className="w-full py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium"
+                className="w-full py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
               >
-                {creando ? 'Creando...' : 'Crear copropiedad'}
+                {creando ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                    </svg>
+                    Creando copropiedad...
+                  </span>
+                ) : 'Crear copropiedad'}
               </button>
             </form>
           </div>
