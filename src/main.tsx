@@ -4,12 +4,15 @@ import './index.css'
 import App from './App.tsx'
 import { AuthProvider } from './context/AuthContext'
 import { CopropiedadProvider } from './context/CopropiedadContext'
+import { ConfigProvider } from './context/ConfigContext'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AuthProvider>
       <CopropiedadProvider>
-        <App />
+        <ConfigProvider>
+          <App />
+        </ConfigProvider>
       </CopropiedadProvider>
     </AuthProvider>
   </StrictMode>,
