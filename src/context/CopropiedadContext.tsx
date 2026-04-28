@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useState, useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { db } from '../api/firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
@@ -28,6 +28,7 @@ export function CopropiedadProvider({ children }: { children: ReactNode }) {
   const [perfil, setPerfil] = useState<PerfilUsuario | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const creandoRef = useRef(false)
 
   useEffect(() => {
     if (!user) {
@@ -72,30 +73,45 @@ export function CopropiedadProvider({ children }: { children: ReactNode }) {
     sistemaTurnos: 'rotacion' | 'calendario' | 'mixto'
   ): Promise<string> => {
     if (!user || !perfil) throw new Error('No hay usuario autenticado')
+    if (creandoRef.current) throw new Error('Ya se está creando una copropiedad')
 
-    const copropiedadId = `cop_${Date.now()}`
+    creandoRef.current = true
 
-    await setDoc(doc(db, 'copropiedades', copropiedadId, 'config', 'general'), {
-      nombre,
-      familias,
-      sistemaTurnos,
-      tarifaDiaria: 12,
-      cuotaAnual: 0,
-      creadaEn: new Date().toISOString(),
-      codigo: copropiedadId.slice(-6).toUpperCase(),
-    })
+    try {
+      const copropiedadId = `cop_${Date.now()}`
 
-    const perfilActualizado: PerfilUsuario = {
-      ...perfil,
-      copropiedadId,
-      familia: familias[0] ?? 'Admin',
-      rol: 'admin',
+      // Crear documento raíz con nombre
+      await setDoc(doc(db, 'copropiedades', copropiedadId), {
+        nombre,
+        creadaEn: new Date().toISOString(),
+      })
+
+      // Crear config dentro de la copropiedad
+      await setDoc(doc(db, 'copropiedades', copropiedadId, 'config', 'general'), {
+        nombrePropiedad: nombre,
+        familias,
+        sistemaTurnos,
+        tarifaDiaria: 12,
+        cuotaAnual: 0,
+        codigo: copropiedadId.slice(-6).toUpperCase(),
+        creadaEn: new Date().toISOString(),
+      })
+
+      // Actualizar perfil del usuario como admin
+      const perfilActualizado: PerfilUsuario = {
+        ...perfil,
+        copropiedadId,
+        familia: familias[0] ?? 'Admin',
+        rol: 'admin',
+      }
+
+      await setDoc(doc(db, 'usuarios', user.uid), perfilActualizado)
+      setPerfil(perfilActualizado)
+
+      return copropiedadId
+    } finally {
+      creandoRef.current = false
     }
-
-    await setDoc(doc(db, 'usuarios', user.uid), perfilActualizado)
-    setPerfil(perfilActualizado)
-
-    return copropiedadId
   }
 
   const unirseACopropiedad = async (codigo: string, familia: string) => {
