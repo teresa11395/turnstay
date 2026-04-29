@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuthContext } from '../context/AuthContext'
 import { useCopropiedad } from '../context/CopropiedadContext'
-import { useConfigContext } from '../context/ConfigContext'
 
 const NAV_ITEMS_BASE = [
   { path: '/', label: 'Panel general', icon: '🏠' },
@@ -19,24 +18,18 @@ const NAV_ITEM_CONFIG = { path: '/configuracion', label: 'Configuración', icon:
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuthContext()
   const { perfil } = useCopropiedad()
-  const { config } = useConfigContext()
   const location = useLocation()
   const [menuAbierto, setMenuAbierto] = useState(false)
 
   const cerrarMenu = () => setMenuAbierto(false)
   const esAdmin = perfil?.rol === 'admin'
-  const sistemaTurnos = config?.sistemaTurnos ?? 'rotacion'
+  const rolLabel = esAdmin ? 'Administrador' : 'Copropietario'
 
-  // Ocultar /calendario si el sistema es calendario libre (no tiene turnos que mostrar)
+  // Calendario visible siempre — la página detecta el sistema y muestra la vista correcta
   const navItems = [
-    ...NAV_ITEMS_BASE.filter(item =>
-      item.path !== '/calendario' || sistemaTurnos === 'rotacion' || sistemaTurnos === 'mixto'
-    ),
-    // Configuración solo para admins
+    ...NAV_ITEMS_BASE,
     ...(esAdmin ? [NAV_ITEM_CONFIG] : []),
   ]
-
-  const rolLabel = esAdmin ? 'Administrador' : 'Copropietario'
 
   return (
     <div className="flex min-h-screen bg-gray-50">
