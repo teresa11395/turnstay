@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useConfigContext } from '../context/ConfigContext'
 
 export interface Turno {
   familia: string
@@ -8,7 +9,8 @@ export interface Turno {
   quincena?: 1 | 2
 }
 
-const FAMILIAS = ['Charo', 'JManuel', 'Carlos', 'Javier', 'Tito', 'MTere', 'Sonso', 'Marisa']
+// Algoritmo clásico de Casa Playa — solo se usa si la copropiedad no tiene periodos definidos
+const FAMILIAS_DEFAULT = ['Charo', 'JManuel', 'Carlos', 'Javier', 'Tito', 'MTere', 'Sonso', 'Marisa']
 
 const TEMPORADA_BAJA = [
   { mes: 1, nombre: 'Enero' },
@@ -36,32 +38,60 @@ const AÑO_BASE = 2020
 
 export function useTurnos() {
   const [año, setAño] = useState(new Date().getFullYear())
+  const { config } = useConfigContext()
 
-  const calcularRotacion = (indiceBase: number, año: number) => {
-    const rotacion = (año - AÑO_BASE) % FAMILIAS.length
-    return (indiceBase - rotacion + FAMILIAS.length) % FAMILIAS.length
+  const familias = config?.familias ?? FAMILIAS_DEFAULT
+  const periodosConfig = config?.periodos
+
+  const calcularRotacion = (indiceBase: number, totalFamilias: number) => {
+    const rotacion = (año - AÑO_BASE) % totalFamilias
+    return (indiceBase - rotacion + totalFamilias) % totalFamilias
   }
 
+  // Si la copropiedad tiene períodos definidos en Firestore → sistema genérico
+  if (periodosConfig && periodosConfig.length > 0) {
+    const turnosGenericos: Turno[] = periodosConfig.map((periodo, index) => ({
+      familia: familias[calcularRotacion(index, familias.length) % familias.length],
+      periodo: periodo.nombre,
+      tipo: 'mensual',  // genérico, no distingue mes/quincena
+      mes: index + 1,
+    }))
+
+    const getTurnoFamilia = (familia: string) => ({
+      baja: turnosGenericos.filter(t => t.familia === familia),
+      alta: [],
+    })
+
+    return {
+      turnosBaja: turnosGenericos,
+      turnosAlta: [],
+      año,
+      setAño,
+      getTurnoFamilia,
+      familias,
+    }
+  }
+
+  // Fallback → algoritmo clásico de Casa Playa (8 familias, temporada baja + alta)
   const turnosBaja: Turno[] = TEMPORADA_BAJA.map((periodo, index) => ({
-    familia: FAMILIAS[calcularRotacion(index, año)],
+    familia: familias[calcularRotacion(index, familias.length)],
     periodo: periodo.nombre,
     tipo: 'mensual',
     mes: periodo.mes,
   }))
 
   const turnosAlta: Turno[] = TEMPORADA_ALTA.map((periodo, index) => ({
-    familia: FAMILIAS[calcularRotacion(index, año)],
+    familia: familias[calcularRotacion(index, familias.length)],
     periodo: `${periodo.nombre} ${periodo.quincena}ª quincena`,
     tipo: 'quincena',
     mes: periodo.mes,
     quincena: periodo.quincena as 1 | 2,
   }))
 
-  const getTurnoFamilia = (familia: string) => {
-    const baja = turnosBaja.filter(t => t.familia === familia)
-    const alta = turnosAlta.filter(t => t.familia === familia)
-    return { baja, alta }
-  }
+  const getTurnoFamilia = (familia: string) => ({
+    baja: turnosBaja.filter(t => t.familia === familia),
+    alta: turnosAlta.filter(t => t.familia === familia),
+  })
 
-  return { turnosBaja, turnosAlta, año, setAño, getTurnoFamilia, familias: FAMILIAS }
+  return { turnosBaja, turnosAlta, año, setAño, getTurnoFamilia, familias }
 }

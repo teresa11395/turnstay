@@ -4,12 +4,17 @@ import { db } from '../api/firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { useCopropiedad } from './CopropiedadContext'
 
+export interface Periodo {
+  nombre: string  // ej: "Enero", "Julio 1ª quincena", "Semana Santa"
+}
+
 export interface Config {
   nombrePropiedad: string
   familias: string[]
   tarifaDiaria: number
   cuotaAnual: number
   sistemaTurnos?: 'rotacion' | 'calendario' | 'mixto'
+  periodos?: Periodo[]  // solo para copropiedades con sistemaTurnos === 'rotacion'
 }
 
 interface ConfigContextType {
@@ -25,6 +30,7 @@ const defaultConfig: Config = {
   tarifaDiaria: 12,
   cuotaAnual: 0,
   sistemaTurnos: 'rotacion',
+  // sin periodos → useTurnos usará el algoritmo clásico de Casa Playa
 }
 
 const ConfigContext = createContext<ConfigContextType | null>(null)

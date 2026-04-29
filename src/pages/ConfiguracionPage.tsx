@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useConfigContext } from '../context/ConfigContext'
+import type { Periodo } from '../context/ConfigContext'
 import LoadingSpinner from '../components/LoadingSpinner'
 
 export default function ConfiguracionPage() {
@@ -9,18 +10,22 @@ export default function ConfiguracionPage() {
   const [familias, setFamilias] = useState<string[]>([])
   const [tarifaDiaria, setTarifaDiaria] = useState(12)
   const [cuotaAnual, setCuotaAnual] = useState(0)
+  const [sistemaTurnos, setSistemaTurnos] = useState<'rotacion' | 'calendario'>('rotacion')
+  const [periodos, setPeriodos] = useState<Periodo[]>([])
   const [nuevaFamilia, setNuevaFamilia] = useState('')
+  const [nuevoPeriodo, setNuevoPeriodo] = useState('')
   const [guardando, setGuardando] = useState(false)
   const [guardado, setGuardado] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Cargar config actual en el formulario
   useEffect(() => {
     if (config) {
       setNombrePropiedad(config.nombrePropiedad)
       setFamilias([...config.familias])
       setTarifaDiaria(config.tarifaDiaria)
       setCuotaAnual(config.cuotaAnual)
+      setSistemaTurnos(config.sistemaTurnos === 'calendario' ? 'calendario' : 'rotacion')
+      setPeriodos(config.periodos ? [...config.periodos] : [])
     }
   }, [config])
 
@@ -45,6 +50,22 @@ export default function ConfiguracionPage() {
     setError(null)
   }
 
+  const handleAñadirPeriodo = () => {
+    const nombre = nuevoPeriodo.trim()
+    if (!nombre) return
+    if (periodos.some(p => p.nombre === nombre)) {
+      setError('Ese período ya existe')
+      return
+    }
+    setPeriodos([...periodos, { nombre }])
+    setNuevoPeriodo('')
+    setError(null)
+  }
+
+  const handleEliminarPeriodo = (nombre: string) => {
+    setPeriodos(periodos.filter(p => p.nombre !== nombre))
+  }
+
   const handleGuardar = async () => {
     if (!nombrePropiedad.trim()) {
       setError('El nombre de la propiedad es obligatorio')
@@ -58,6 +79,10 @@ export default function ConfiguracionPage() {
       setError('La tarifa no puede ser negativa')
       return
     }
+    if (sistemaTurnos === 'rotacion' && periodos.length === 0) {
+      setError('Define al menos un período para el sistema de rotación')
+      return
+    }
 
     setError(null)
     setGuardando(true)
@@ -67,6 +92,8 @@ export default function ConfiguracionPage() {
       familias,
       tarifaDiaria,
       cuotaAnual,
+      sistemaTurnos,
+      periodos: sistemaTurnos === 'rotacion' ? periodos : [],
     })
 
     setGuardando(false)
@@ -135,6 +162,92 @@ export default function ConfiguracionPage() {
           <p className="text-xs text-gray-400 mt-2">
             {familias.length} familia{familias.length !== 1 ? 's' : ''} · Los turnos se calculan en base a este orden
           </p>
+        </div>
+
+        {/* Sistema de turnos */}
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <h2 className="text-base font-semibold text-gray-700 mb-3">Sistema de turnos</h2>
+
+          <div className="flex flex-col gap-3 mb-4">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="radio"
+                name="sistemaTurnos"
+                value="rotacion"
+                checked={sistemaTurnos === 'rotacion'}
+                onChange={() => setSistemaTurnos('rotacion')}
+                className="mt-0.5"
+              />
+              <div>
+                <p className="text-sm font-medium text-gray-700">Rotación de turnos</p>
+                <p className="text-xs text-gray-400">Los períodos se asignan automáticamente a cada familia y rotan cada año</p>
+              </div>
+            </label>
+
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="radio"
+                name="sistemaTurnos"
+                value="calendario"
+                checked={sistemaTurnos === 'calendario'}
+                onChange={() => setSistemaTurnos('calendario')}
+                className="mt-0.5"
+              />
+              <div>
+                <p className="text-sm font-medium text-gray-700">Calendario libre</p>
+                <p className="text-xs text-gray-400">Cada familia reserva los días que quiere sin turnos asignados</p>
+              </div>
+            </label>
+          </div>
+
+          {/* Períodos — solo si eligen rotación */}
+          {sistemaTurnos === 'rotacion' && (
+            <div className="border-t border-gray-100 pt-4 mt-2">
+              <p className="text-sm font-medium text-gray-600 mb-3">
+                Períodos de la copropiedad
+              </p>
+
+              {periodos.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {periodos.map((p, i) => (
+                    <span
+                      key={i}
+                      className="flex items-center gap-1.5 bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg text-sm font-medium"
+                    >
+                      {p.nombre}
+                      <button
+                        onClick={() => handleEliminarPeriodo(p.nombre)}
+                        className="text-blue-400 hover:text-red-500 transition-colors leading-none"
+                        title={`Eliminar ${p.nombre}`}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={nuevoPeriodo}
+                  onChange={(e) => setNuevoPeriodo(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleAñadirPeriodo()}
+                  placeholder="Ej: Enero, Julio 1ª quincena, Semana Santa..."
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                />
+                <button
+                  onClick={handleAñadirPeriodo}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+                >
+                  Añadir
+                </button>
+              </div>
+              <p className="text-xs text-gray-400 mt-2">
+                {periodos.length} período{periodos.length !== 1 ? 's' : ''} · Se repartirán entre las {familias.length} familias en rotación anual
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Tarifas */}
