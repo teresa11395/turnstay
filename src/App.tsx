@@ -6,6 +6,7 @@ import ProtectedAdminRoute from './components/ProtectedAdminRoute'
 import LoginPage from './pages/LoginPage'
 import OnboardingPage from './pages/OnboardingPage'
 import DashboardPage from './pages/DashboardPage'
+import CalendarioPage from './pages/CalendarioPage'
 import OcupacionesPage from './pages/OcupacionesPage'
 import GastosPage from './pages/GastosPage'
 import IncidenciasPage from './pages/IncidenciasPage'
@@ -33,13 +34,14 @@ export default function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/onboarding" element={<OnboardingPage />} />
         <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+        <Route path="/calendario" element={<ProtectedRoute><CalendarioPage /></ProtectedRoute>} />
         <Route path="/ocupaciones" element={<ProtectedRoute><OcupacionesPage /></ProtectedRoute>} />
         <Route path="/gastos" element={<ProtectedRoute><GastosPage /></ProtectedRoute>} />
         <Route path="/incidencias" element={<ProtectedRoute><IncidenciasPage /></ProtectedRoute>} />
         <Route path="/cesiones" element={<ProtectedRoute><CesionesPage /></ProtectedRoute>} />
         <Route path="/historico" element={<ProtectedRoute><HistoricoPage /></ProtectedRoute>} />
 
-        {/* FIX: /configuracion solo accesible para admins */}
+        {/* /configuracion solo accesible para admins */}
         <Route path="/configuracion" element={
           <ProtectedRoute>
             <ProtectedAdminRoute>
