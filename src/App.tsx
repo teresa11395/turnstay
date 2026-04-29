@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthContext } from './context/AuthContext'
 import { useCopropiedad } from './context/CopropiedadContext'
 import Layout from './components/Layout'
+import ProtectedAdminRoute from './components/ProtectedAdminRoute'
 import LoginPage from './pages/LoginPage'
 import OnboardingPage from './pages/OnboardingPage'
 import DashboardPage from './pages/DashboardPage'
@@ -36,8 +37,17 @@ export default function App() {
         <Route path="/gastos" element={<ProtectedRoute><GastosPage /></ProtectedRoute>} />
         <Route path="/incidencias" element={<ProtectedRoute><IncidenciasPage /></ProtectedRoute>} />
         <Route path="/cesiones" element={<ProtectedRoute><CesionesPage /></ProtectedRoute>} />
-        <Route path="/configuracion" element={<ProtectedRoute><ConfiguracionPage /></ProtectedRoute>} />
         <Route path="/historico" element={<ProtectedRoute><HistoricoPage /></ProtectedRoute>} />
+
+        {/* FIX: /configuracion solo accesible para admins */}
+        <Route path="/configuracion" element={
+          <ProtectedRoute>
+            <ProtectedAdminRoute>
+              <ConfiguracionPage />
+            </ProtectedAdminRoute>
+          </ProtectedRoute>
+        } />
+
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </BrowserRouter>
