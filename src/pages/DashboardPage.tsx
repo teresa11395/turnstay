@@ -4,6 +4,7 @@ import { useGastos } from '../hooks/useGastos'
 import { useIncidencias } from '../hooks/useIncidencias'
 import { useTurnos } from '../hooks/useTurnos'
 import { useAuthContext } from '../context/AuthContext'
+import { useConfigContext } from '../context/ConfigContext'
 import LoadingSpinner from '../components/LoadingSpinner'
 
 const COLORES_FAMILIA: Record<string, string> = {
@@ -22,6 +23,7 @@ const colorFamilia = (familia: string) =>
 
 export default function DashboardPage() {
   const { user } = useAuthContext()
+  const { config } = useConfigContext()
   const navigate = useNavigate()
   const { ocupaciones, loading: loadingOcupaciones } = useOcupaciones()
   const { totalGastos, loading: loadingGastos } = useGastos()
@@ -29,6 +31,9 @@ export default function DashboardPage() {
   const { turnosBaja, turnosAlta, año, setAño } = useTurnos()
 
   if (loadingOcupaciones || loadingGastos || loadingIncidencias) return <LoadingSpinner />
+
+  const sistemaTurnos = config?.sistemaTurnos ?? 'rotacion'
+  const mostrarTurnos = sistemaTurnos === 'rotacion' || sistemaTurnos === 'mixto'
 
   const turnosAño = [...turnosBaja, ...turnosAlta]
   const ultimasOcupaciones = ocupaciones.slice(0, 3)
@@ -118,42 +123,60 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Turnos del año */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5 md:col-span-2">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <h2 className="text-sm font-semibold text-gray-700">Turnos {año}</h2>
-              <p className="text-xs text-gray-400 mt-0.5">Pulsa un turno para solicitar una cesión</p>
+        {/* Turnos del año — solo para rotacion y mixto */}
+        {mostrarTurnos && (
+          <div className="bg-white rounded-xl border border-gray-200 p-5 md:col-span-2">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h2 className="text-sm font-semibold text-gray-700">Turnos {año}</h2>
+                <p className="text-xs text-gray-400 mt-0.5">Pulsa un turno para solicitar una cesión</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setAño(año - 1)}
+                  className="w-7 h-7 flex items-center justify-center rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-500 text-sm"
+                >
+                  ←
+                </button>
+                <button
+                  onClick={() => setAño(año + 1)}
+                  className="w-7 h-7 flex items-center justify-center rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-500 text-sm"
+                >
+                  →
+                </button>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setAño(año - 1)}
-                className="w-7 h-7 flex items-center justify-center rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-500 text-sm"
-              >
-                ←
-              </button>
-              <button
-                onClick={() => setAño(año + 1)}
-                className="w-7 h-7 flex items-center justify-center rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-500 text-sm"
-              >
-                →
-              </button>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {turnosAño.map((t, index) => (
+                <button
+                  key={index}
+                  onClick={() => handleTurnoClick(t.familia)}
+                  className={`rounded-lg p-3 text-left transition-colors cursor-pointer ${colorFamilia(t.familia)}`}
+                  title={`Solicitar cesión a ${t.familia}`}
+                >
+                  <p className="text-xs opacity-70 mb-0.5">{t.periodo}</p>
+                  <p className="text-sm font-medium">{t.familia}</p>
+                </button>
+              ))}
             </div>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            {turnosAño.map((t, index) => (
-              <button
-                key={index}
-                onClick={() => handleTurnoClick(t.familia)}
-                className={`rounded-lg p-3 text-left transition-colors cursor-pointer ${colorFamilia(t.familia)}`}
-                title={`Solicitar cesión a ${t.familia}`}
-              >
-                <p className="text-xs opacity-70 mb-0.5">{t.periodo}</p>
-                <p className="text-sm font-medium">{t.familia}</p>
-              </button>
-            ))}
+        )}
+
+        {/* Calendario libre — solo para calendario y mixto */}
+        {!mostrarTurnos && (
+          <div className="bg-white rounded-xl border border-gray-200 p-5 md:col-span-2">
+            <h2 className="text-sm font-semibold text-gray-700 mb-2">Reservas de días</h2>
+            <p className="text-sm text-gray-400">
+              Tu copropiedad usa el sistema de <span className="font-medium text-gray-600">calendario libre</span>. Cada familia puede reservar los días que quiera desde la sección de Ocupaciones.
+            </p>
+            <button
+              onClick={() => navigate('/ocupaciones')}
+              className="mt-3 text-sm text-blue-600 hover:text-blue-700 font-medium"
+            >
+              → Ir a Ocupaciones
+            </button>
           </div>
-        </div>
+        )}
 
       </div>
     </div>
