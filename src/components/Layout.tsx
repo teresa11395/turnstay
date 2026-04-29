@@ -1,23 +1,42 @@
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuthContext } from '../context/AuthContext'
+import { useCopropiedad } from '../context/CopropiedadContext'
+import { useConfigContext } from '../context/ConfigContext'
 
-const navItems = [
+const NAV_ITEMS_BASE = [
   { path: '/', label: 'Panel general', icon: '🏠' },
+  { path: '/calendario', label: 'Calendario', icon: '📅' },
   { path: '/ocupaciones', label: 'Ocupaciones', icon: '🛎️' },
   { path: '/gastos', label: 'Gastos', icon: '💰' },
   { path: '/incidencias', label: 'Incidencias', icon: '🔧' },
   { path: '/cesiones', label: 'Cesiones', icon: '🔄' },
   { path: '/historico', label: 'Histórico', icon: '📊' },
-  { path: '/configuracion', label: 'Configuración', icon: '⚙️' },
 ]
+
+const NAV_ITEM_CONFIG = { path: '/configuracion', label: 'Configuración', icon: '⚙️' }
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuthContext()
+  const { perfil } = useCopropiedad()
+  const { config } = useConfigContext()
   const location = useLocation()
   const [menuAbierto, setMenuAbierto] = useState(false)
 
   const cerrarMenu = () => setMenuAbierto(false)
+  const esAdmin = perfil?.rol === 'admin'
+  const sistemaTurnos = config?.sistemaTurnos ?? 'rotacion'
+
+  // Ocultar /calendario si el sistema es calendario libre (no tiene turnos que mostrar)
+  const navItems = [
+    ...NAV_ITEMS_BASE.filter(item =>
+      item.path !== '/calendario' || sistemaTurnos === 'rotacion' || sistemaTurnos === 'mixto'
+    ),
+    // Configuración solo para admins
+    ...(esAdmin ? [NAV_ITEM_CONFIG] : []),
+  ]
+
+  const rolLabel = esAdmin ? 'Administrador' : 'Copropietario'
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -57,7 +76,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </nav>
         <div className="px-4 py-3 border-t border-gray-100">
           <p className="text-xs font-medium text-gray-700 truncate">{user?.email}</p>
-          <p className="text-xs text-gray-400">Copropietario</p>
+          <p className="text-xs text-gray-400">{rolLabel}</p>
         </div>
       </aside>
 
@@ -127,7 +146,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </nav>
         <div className="px-4 py-4 border-t border-gray-100">
           <p className="text-xs font-medium text-gray-700 truncate mb-0.5">{user?.email}</p>
-          <p className="text-xs text-gray-400 mb-3">Copropietario</p>
+          <p className="text-xs text-gray-400 mb-3">{rolLabel}</p>
           <button
             onClick={logout}
             className="w-full py-2 px-3 text-sm text-red-500 border border-red-200 rounded-lg hover:bg-red-50 transition-colors font-medium"
