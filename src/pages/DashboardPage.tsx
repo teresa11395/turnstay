@@ -23,14 +23,17 @@ const colorFamilia = (familia: string) =>
 
 export default function DashboardPage() {
   const { user } = useAuthContext()
-  const { config } = useConfigContext()
+  // FIX: también leemos loading del config para no renderizar con datos por defecto
+  const { config, loading: loadingConfig } = useConfigContext()
   const navigate = useNavigate()
   const { ocupaciones, loading: loadingOcupaciones } = useOcupaciones()
   const { totalGastos, loading: loadingGastos } = useGastos()
   const { incidencias, loading: loadingIncidencias } = useIncidencias()
   const { turnosBaja, turnosAlta, año, setAño } = useTurnos()
 
-  if (loadingOcupaciones || loadingGastos || loadingIncidencias) return <LoadingSpinner />
+  // FIX: añadido loadingConfig — si el config aún no ha cargado de Firestore,
+  // no renderizamos el dashboard para evitar mostrar el sistema de turnos por defecto
+  if (loadingOcupaciones || loadingGastos || loadingIncidencias || loadingConfig) return <LoadingSpinner />
 
   const sistemaTurnos = config?.sistemaTurnos ?? 'rotacion'
   const mostrarTurnos = sistemaTurnos === 'rotacion' || sistemaTurnos === 'mixto'

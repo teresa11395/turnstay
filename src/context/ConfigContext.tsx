@@ -30,13 +30,18 @@ const defaultConfig: Config = {
 const ConfigContext = createContext<ConfigContextType | null>(null)
 
 export function ConfigProvider({ children }: { children: ReactNode }) {
-  const { perfil } = useCopropiedad()
+  // FIX: también leemos loading de CopropiedadContext para saber cuándo está listo el perfil
+  const { perfil, loading: loadingPerfil } = useCopropiedad()
   const copropiedadId = perfil?.copropiedadId
   const [config, setConfig] = useState<Config | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    // FIX: esperar a que CopropiedadContext haya terminado de cargar el perfil
+    // Si no esperamos, copropiedadId puede ser null aunque el usuario sí tenga copropiedad
+    if (loadingPerfil) return
+
     if (!copropiedadId) {
       setConfig(defaultConfig)
       setLoading(false)
@@ -63,7 +68,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     }
 
     fetchConfig()
-  }, [copropiedadId])
+  }, [copropiedadId, loadingPerfil]) // FIX: loadingPerfil como dependencia
 
   const updateConfig = async (newConfig: Config) => {
     if (!copropiedadId) return
