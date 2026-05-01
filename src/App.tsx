@@ -4,7 +4,6 @@ import { useCopropiedad } from './context/CopropiedadContext'
 import Layout from './components/Layout'
 import ProtectedAdminRoute from './components/ProtectedAdminRoute'
 import LoginPage from './pages/LoginPage'
-import OnboardingPage from './pages/OnboardingPage'
 import DashboardPage from './pages/DashboardPage'
 import CalendarioPage from './pages/CalendarioPage'
 import OcupacionesPage from './pages/OcupacionesPage'
@@ -21,8 +20,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { tieneCopropiedad, loading: loadingCop } = useCopropiedad()
 
   if (loadingAuth || loadingCop) return <LoadingSpinner />
-  if (!user) return <Navigate to="/login" />
-  if (!tieneCopropiedad) return <Navigate to="/onboarding" />
+  if (!user || !tieneCopropiedad) return <Navigate to="/login" />
 
   return <Layout>{children}</Layout>
 }
@@ -32,7 +30,8 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/onboarding" element={<OnboardingPage />} />
+        {/* Redirigir /onboarding a /login por si alguien tiene la URL guardada */}
+        <Route path="/onboarding" element={<Navigate to="/login" />} />
         <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
         <Route path="/calendario" element={<ProtectedRoute><CalendarioPage /></ProtectedRoute>} />
         <Route path="/ocupaciones" element={<ProtectedRoute><OcupacionesPage /></ProtectedRoute>} />
