@@ -91,7 +91,7 @@ export function CopropiedadProvider({ children }: { children: ReactNode }) {
         nombrePropiedad: nombre,
         familias,
         sistemaTurnos,
-        tarifaDiaria: 12,
+        tarifaDiaria: 0,
         cuotaAnual: 0,
         codigo: copropiedadId.slice(-6).toUpperCase(),
         creadaEn: new Date().toISOString(),

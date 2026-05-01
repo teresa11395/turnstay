@@ -27,7 +27,7 @@ interface ConfigContextType {
 const defaultConfig: Config = {
   nombrePropiedad: 'TurnStay',
   familias: ['Charo', 'JManuel', 'Carlos', 'Javier', 'Tito', 'MTere', 'Sonso', 'Marisa'],
-  tarifaDiaria: 12,
+  tarifaDiaria: 0,
   cuotaAnual: 0,
   sistemaTurnos: 'rotacion',
   // sin periodos → useTurnos usará el algoritmo clásico de Casa Playa
