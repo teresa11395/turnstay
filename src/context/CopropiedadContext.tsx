@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { db } from '../api/firebase'
-import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore'
 import { useAuthContext } from './AuthContext'
 
 export interface PerfilUsuario {
@@ -80,13 +80,11 @@ export function CopropiedadProvider({ children }: { children: ReactNode }) {
     try {
       const copropiedadId = `cop_${Date.now()}`
 
-      // Crear documento raíz con nombre
       await setDoc(doc(db, 'copropiedades', copropiedadId), {
         nombre,
         creadaEn: new Date().toISOString(),
       })
 
-      // Crear config dentro de la copropiedad
       await setDoc(doc(db, 'copropiedades', copropiedadId, 'config', 'general'), {
         nombrePropiedad: nombre,
         familias,
@@ -97,7 +95,6 @@ export function CopropiedadProvider({ children }: { children: ReactNode }) {
         creadaEn: new Date().toISOString(),
       })
 
-      // Actualizar perfil del usuario como admin
       const perfilActualizado: PerfilUsuario = {
         ...perfil,
         copropiedadId,
@@ -115,12 +112,33 @@ export function CopropiedadProvider({ children }: { children: ReactNode }) {
   }
 
   const unirseACopropiedad = async (codigo: string, familia: string) => {
-    if (!user || !perfil) throw new Error('No hay usuario autenticado')
+    // FIX: no dependemos de perfil — usamos user.uid directamente
+    // Esto permite que funcione justo después de register() cuando perfil aún es null
+    if (!user) throw new Error('No hay usuario autenticado')
 
-    const copropiedadId = `cop_${codigo.toLowerCase()}`
+    const codigoUpper = codigo.trim().toUpperCase()
 
+    // Buscar la copropiedad por el campo 'codigo' en su config/general
+    const snapshot = await getDocs(collection(db, 'copropiedades'))
+
+    let copropiedadId: string | null = null
+    for (const docSnap of snapshot.docs) {
+      const configRef = doc(db, 'copropiedades', docSnap.id, 'config', 'general')
+      const configSnap = await getDoc(configRef)
+      if (configSnap.exists() && configSnap.data()?.codigo === codigoUpper) {
+        copropiedadId = docSnap.id
+        break
+      }
+    }
+
+    if (!copropiedadId) {
+      throw new Error('Código no válido')
+    }
+
+    // Construir perfil nuevo sin depender del perfil en memoria
     const perfilActualizado: PerfilUsuario = {
-      ...perfil,
+      uid: user.uid,
+      email: user.email ?? '',
       copropiedadId,
       familia,
       rol: 'copropietario',
