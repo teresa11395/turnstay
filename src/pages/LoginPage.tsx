@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuthContext } from '../context/AuthContext'
 import { useCopropiedad } from '../context/CopropiedadContext'
@@ -27,13 +27,28 @@ export default function LoginPage() {
   const [errorLocal, setErrorLocal] = useState<string | null>(null)
   const enviandoRef = useRef(false)
 
-  // Unirse — ahora incluye email y contraseña para crear cuenta
+  // Unirse
   const [codigo, setCodigo] = useState('')
   const [familia, setFamilia] = useState('')
   const [emailUnirse, setEmailUnirse] = useState('')
   const [passwordUnirse, setPasswordUnirse] = useState('')
   const [passwordConfirm, setPasswordConfirm] = useState('')
   const [uniendose, setUniendose] = useState(false)
+
+  // FIX: guardamos codigo y familia pendientes para ejecutar unirseACopropiedad
+  // cuando user esté disponible en el contexto tras el registro
+  const pendienteRef = useRef<{ codigo: string; familia: string } | null>(null)
+
+  useEffect(() => {
+    if (user && pendienteRef.current) {
+      const pendiente = pendienteRef.current
+      pendienteRef.current = null
+      unirseACopropiedad(pendiente.codigo, pendiente.familia).catch(() => {
+        setErrorLocal('Cuenta creada pero error al unirse. Inténtalo de nuevo.')
+        setUniendose(false)
+      })
+    }
+  }, [user])
 
   if (loadingAuth || loadingCop) return <LoadingSpinner />
   if (user && tieneCopropiedad) return <Navigate to="/" />
@@ -86,13 +101,13 @@ export default function LoginPage() {
     setUniendose(true)
     setErrorLocal(null)
     try {
-      // 1. Crear cuenta en Firebase Auth
+      // Guardamos el pendiente ANTES de registrar para que el useEffect lo recoja
+      pendienteRef.current = { codigo: codigo.trim(), familia: familia.trim() }
       await register(emailUnirse.trim(), passwordUnirse)
-      // 2. Vincular a la copropiedad — el usuario ya estará autenticado tras register
-      await unirseACopropiedad(codigo.trim(), familia.trim())
+      // El useEffect se encargará de llamar unirseACopropiedad cuando user esté listo
     } catch (err) {
-      setErrorLocal('Código no válido o error al unirse')
-    } finally {
+      pendienteRef.current = null
+      setErrorLocal('Error al crear la cuenta. Inténtalo de nuevo.')
       setUniendose(false)
     }
   }
@@ -339,7 +354,6 @@ export default function LoginPage() {
             </p>
 
             <form onSubmit={handleUnirse} className="space-y-4">
-              {/* Código y familia */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -368,18 +382,14 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              {/* Separador */}
               <div className="flex items-center gap-3">
                 <div className="flex-1 h-px bg-gray-200" />
                 <span className="text-xs text-gray-400">Crea tu cuenta</span>
                 <div className="flex-1 h-px bg-gray-200" />
               </div>
 
-              {/* Email y contraseña */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
                 <input
                   type="email"
                   value={emailUnirse}
@@ -389,9 +399,7 @@ export default function LoginPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Contraseña
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
                 <input
                   type="password"
                   value={passwordUnirse}
@@ -401,9 +409,7 @@ export default function LoginPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Confirmar contraseña
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Confirmar contraseña</label>
                 <input
                   type="password"
                   value={passwordConfirm}
