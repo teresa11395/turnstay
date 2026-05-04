@@ -9,7 +9,7 @@ type Vista = 'login' | 'crear' | 'unirse'
 const FAMILIAS_EJEMPLO = ['Familia 1', 'Familia 2']
 
 export default function LoginPage() {
-  const { user, loading: loadingAuth, error: errorAuth, login, register } = useAuthContext()
+  const { user, loading: loadingAuth, error: errorAuth, login, register, logout } = useAuthContext()
   const { tieneCopropiedad, loading: loadingCop, crearCopropiedad, unirseACopropiedad, error: errorCop } = useCopropiedad()
 
   const [vista, setVista] = useState<Vista>('login')
@@ -178,7 +178,18 @@ export default function LoginPage() {
         {/* ── VISTA ONBOARDING (autenticado sin copropiedad) ── */}
         {user && !tieneCopropiedad && vista === 'login' && (
           <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-800 mb-2">Bienvenido</h2>
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-800">Bienvenido</h2>
+                <p className="text-xs text-gray-400 mt-0.5">{user.email}</p>
+              </div>
+              <button
+                onClick={logout}
+                className="text-xs text-red-500 border border-red-200 px-2.5 py-1.5 rounded-lg hover:bg-red-50 font-medium"
+              >
+                Cerrar sesión
+              </button>
+            </div>
             <p className="text-sm text-gray-500 mb-6">
               Tu cuenta está lista. Crea una nueva copropiedad o únete a una existente.
             </p>
