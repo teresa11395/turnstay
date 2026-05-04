@@ -24,10 +24,13 @@ export default function OcupacionForm({ onClose }: { onClose: () => void }) {
 
   const dias = calcularDias()
 
-  // 6€/persona/día con mínimo de 12€/día
-  const tarifaPorPersonas = personas * 6
-  const tarifaDiaria = Math.max(tarifaPorPersonas, 12)
-  const coste = dias * tarifaDiaria
+  // FIX: usar tarifaDiaria de la config de la copropiedad
+  // Si tarifaDiaria es 0 (no configurada) el coste es 0
+  // Si tarifaDiaria > 0 se aplica: personas * 6€ con ese valor como mínimo
+  const tarifaBase = config?.tarifaDiaria ?? 0
+  const coste = tarifaBase === 0
+    ? 0
+    : dias * Math.max(personas * 6, tarifaBase)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -127,13 +130,20 @@ export default function OcupacionForm({ onClose }: { onClose: () => void }) {
         {dias > 0 && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-700 space-y-1">
             <p><span className="font-medium">Días:</span> {dias}</p>
-            <p>
-              <span className="font-medium">Tarifa:</span>{' '}
-              {personas * 6 < 12
-                ? `mínimo 12€/día (${personas} persona${personas > 1 ? 's' : ''} × 6€ = ${personas * 6}€ < mínimo)`
-                : `${personas} persona${personas > 1 ? 's' : ''} × 6€ = ${tarifaDiaria}€/día`
-              }
-            </p>
+            {tarifaBase === 0 ? (
+              <p className="text-amber-600 font-medium">
+                ⚠️ Tarifa no configurada — el coste se registrará como 0€. 
+                Configura la tarifa diaria en Configuración.
+              </p>
+            ) : (
+              <p>
+                <span className="font-medium">Tarifa:</span>{' '}
+                {personas * 6 < tarifaBase
+                  ? `mínimo ${tarifaBase}€/día (${personas} persona${personas > 1 ? 's' : ''} × 6€ = ${personas * 6}€ < mínimo)`
+                  : `${personas} persona${personas > 1 ? 's' : ''} × 6€ = ${personas * 6}€/día`
+                }
+              </p>
+            )}
             <p className="font-semibold text-blue-800">
               Coste total: {coste}€
             </p>
