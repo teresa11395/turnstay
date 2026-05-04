@@ -3,7 +3,8 @@ import { auth } from '../api/firebase'
 import {
   signInWithEmailAndPassword,
   signOut,
-  onAuthStateChanged
+  onAuthStateChanged,
+  createUserWithEmailAndPassword,
 } from 'firebase/auth'
 import type { User } from 'firebase/auth'
 
@@ -29,6 +30,24 @@ export function useAuth() {
     }
   }
 
+  // Nuevo: registrar usuario con email y contraseña
+  const register = async (email: string, password: string) => {
+    try {
+      setError(null)
+      await createUserWithEmailAndPassword(auth, email, password)
+    } catch (err: any) {
+      if (err.code === 'auth/email-already-in-use') {
+        setError('Ese email ya está registrado')
+      } else if (err.code === 'auth/weak-password') {
+        setError('La contraseña debe tener al menos 6 caracteres')
+      } else if (err.code === 'auth/invalid-email') {
+        setError('El email no es válido')
+      } else {
+        setError('Error al crear la cuenta')
+      }
+    }
+  }
+
   const logout = async () => {
     try {
       await signOut(auth)
@@ -37,5 +56,5 @@ export function useAuth() {
     }
   }
 
-  return { user, loading, error, login, logout }
+  return { user, loading, error, login, register, logout }
 }

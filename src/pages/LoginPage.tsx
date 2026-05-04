@@ -9,7 +9,7 @@ type Vista = 'login' | 'crear' | 'unirse'
 const FAMILIAS_EJEMPLO = ['Familia 1', 'Familia 2']
 
 export default function LoginPage() {
-  const { user, loading: loadingAuth, error: errorAuth, login } = useAuthContext()
+  const { user, loading: loadingAuth, error: errorAuth, login, register } = useAuthContext()
   const { tieneCopropiedad, loading: loadingCop, crearCopropiedad, unirseACopropiedad, error: errorCop } = useCopropiedad()
 
   const [vista, setVista] = useState<Vista>('login')
@@ -27,19 +27,16 @@ export default function LoginPage() {
   const [errorLocal, setErrorLocal] = useState<string | null>(null)
   const enviandoRef = useRef(false)
 
-  // Unirse
+  // Unirse — ahora incluye email y contraseña para crear cuenta
   const [codigo, setCodigo] = useState('')
   const [familia, setFamilia] = useState('')
+  const [emailUnirse, setEmailUnirse] = useState('')
+  const [passwordUnirse, setPasswordUnirse] = useState('')
+  const [passwordConfirm, setPasswordConfirm] = useState('')
   const [uniendose, setUniendose] = useState(false)
 
-  // Mientras Firebase verifica la sesión → spinner, no onboarding
   if (loadingAuth || loadingCop) return <LoadingSpinner />
-
-  // Si ya hay sesión y tiene copropiedad → dashboard
   if (user && tieneCopropiedad) return <Navigate to="/" />
-
-  // Si hay sesión pero no tiene copropiedad → mostrar opciones de crear/unirse
-  // (no redirigir a onboarding, lo mostramos aquí mismo)
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -81,10 +78,17 @@ export default function LoginPage() {
     e.preventDefault()
     if (!codigo.trim()) return setErrorLocal('El código es obligatorio')
     if (!familia.trim()) return setErrorLocal('Indica el nombre de tu familia')
+    if (!emailUnirse.trim()) return setErrorLocal('El email es obligatorio')
+    if (!passwordUnirse.trim()) return setErrorLocal('La contraseña es obligatoria')
+    if (passwordUnirse.length < 6) return setErrorLocal('La contraseña debe tener al menos 6 caracteres')
+    if (passwordUnirse !== passwordConfirm) return setErrorLocal('Las contraseñas no coinciden')
 
     setUniendose(true)
     setErrorLocal(null)
     try {
+      // 1. Crear cuenta en Firebase Auth
+      await register(emailUnirse.trim(), passwordUnirse)
+      // 2. Vincular a la copropiedad — el usuario ya estará autenticado tras register
       await unirseACopropiedad(codigo.trim(), familia.trim())
     } catch (err) {
       setErrorLocal('Código no válido o error al unirse')
@@ -103,7 +107,7 @@ export default function LoginPage() {
           <p className="text-gray-500 mt-1">Gestión de copropiedades vacacionales</p>
         </div>
 
-        {/* ── VISTA LOGIN (usuario no autenticado) ── */}
+        {/* ── VISTA LOGIN ── */}
         {!user && vista === 'login' && (
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <h2 className="text-lg font-semibold text-gray-800 mb-1">Acceder</h2>
@@ -148,7 +152,6 @@ export default function LoginPage() {
               </button>
             </form>
 
-            {/* Separador */}
             <div className="flex items-center gap-3 my-5">
               <div className="flex-1 h-px bg-gray-200" />
               <span className="text-xs text-gray-400">¿Primera vez?</span>
@@ -166,13 +169,13 @@ export default function LoginPage() {
                 onClick={() => setVista('unirse')}
                 className="w-full py-2.5 px-4 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium text-sm"
               >
-                Unirme con código de invitación
+                Tengo código de invitación
               </button>
             </div>
           </div>
         )}
 
-        {/* ── VISTA ONBOARDING (usuario autenticado sin copropiedad) ── */}
+        {/* ── VISTA ONBOARDING (autenticado sin copropiedad) ── */}
         {user && !tieneCopropiedad && vista === 'login' && (
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <h2 className="text-lg font-semibold text-gray-800 mb-2">Bienvenido</h2>
@@ -310,7 +313,7 @@ export default function LoginPage() {
           </div>
         )}
 
-        {/* ── UNIRSE ── */}
+        {/* ── UNIRSE CON CÓDIGO ── */}
         {vista === 'unirse' && (
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <button
@@ -319,40 +322,88 @@ export default function LoginPage() {
             >
               ← Volver
             </button>
-            <h2 className="text-lg font-semibold text-gray-800 mb-2">Unirse a una copropiedad</h2>
+            <h2 className="text-lg font-semibold text-gray-800 mb-1">Unirse a una copropiedad</h2>
             <p className="text-sm text-gray-500 mb-4">
-              Introduce el código que te ha compartido el administrador.
+              Introduce el código que te ha compartido el administrador y crea tu cuenta.
             </p>
 
             <form onSubmit={handleUnirse} className="space-y-4">
+              {/* Código y familia */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Código de invitación
+                  </label>
+                  <input
+                    type="text"
+                    value={codigo}
+                    onChange={e => setCodigo(e.target.value.toUpperCase())}
+                    placeholder="Ej: ABC123"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono tracking-widest"
+                    maxLength={6}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Tu familia
+                  </label>
+                  <input
+                    type="text"
+                    value={familia}
+                    onChange={e => setFamilia(e.target.value)}
+                    placeholder="Ej: Charo"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  />
+                </div>
+              </div>
+
+              {/* Separador */}
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px bg-gray-200" />
+                <span className="text-xs text-gray-400">Crea tu cuenta</span>
+                <div className="flex-1 h-px bg-gray-200" />
+              </div>
+
+              {/* Email y contraseña */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Código de invitación
+                  Email
                 </label>
                 <input
-                  type="text"
-                  value={codigo}
-                  onChange={e => setCodigo(e.target.value.toUpperCase())}
-                  placeholder="Ej: ABC123"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono tracking-widest"
-                  maxLength={6}
+                  type="email"
+                  value={emailUnirse}
+                  onChange={e => setEmailUnirse(e.target.value)}
+                  placeholder="tu@email.com"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Tu familia
+                  Contraseña
                 </label>
                 <input
-                  type="text"
-                  value={familia}
-                  onChange={e => setFamilia(e.target.value)}
-                  placeholder="Ej: Charo, JManuel..."
+                  type="password"
+                  value={passwordUnirse}
+                  onChange={e => setPasswordUnirse(e.target.value)}
+                  placeholder="Mínimo 6 caracteres"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Confirmar contraseña
+                </label>
+                <input
+                  type="password"
+                  value={passwordConfirm}
+                  onChange={e => setPasswordConfirm(e.target.value)}
+                  placeholder="Repite la contraseña"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                 />
               </div>
 
-              {(errorLocal || errorCop) && (
-                <p className="text-red-600 text-sm">{errorLocal || errorCop}</p>
+              {(errorLocal || errorAuth || errorCop) && (
+                <p className="text-red-600 text-sm">{errorLocal || errorAuth || errorCop}</p>
               )}
 
               <button
@@ -360,7 +411,15 @@ export default function LoginPage() {
                 disabled={uniendose}
                 className="w-full py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium"
               >
-                {uniendose ? 'Uniéndome...' : 'Unirme'}
+                {uniendose ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                    </svg>
+                    Creando cuenta...
+                  </span>
+                ) : 'Crear cuenta y unirme'}
               </button>
             </form>
           </div>
