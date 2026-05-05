@@ -1,16 +1,19 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuthContext } from '../context/AuthContext'
 import { useCopropiedad } from '../context/CopropiedadContext'
 import LoadingSpinner from '../components/LoadingSpinner'
+import { createUserWithEmailAndPassword } from 'firebase/auth'
+import { auth, db } from '../api/firebase'
+import { collection, getDocs, doc, getDoc, setDoc } from 'firebase/firestore'
 
 type Vista = 'login' | 'crear' | 'unirse'
 
 const FAMILIAS_EJEMPLO = ['Familia 1', 'Familia 2']
 
 export default function LoginPage() {
-  const { user, loading: loadingAuth, error: errorAuth, login, register, logout } = useAuthContext()
-  const { tieneCopropiedad, loading: loadingCop, crearCopropiedad, unirseACopropiedad, error: errorCop } = useCopropiedad()
+  const { user, loading: loadingAuth, error: errorAuth, login, logout } = useAuthContext()
+  const { tieneCopropiedad, loading: loadingCop, crearCopropiedad } = useCopropiedad()
 
   const [vista, setVista] = useState<Vista>('login')
 
@@ -34,21 +37,6 @@ export default function LoginPage() {
   const [passwordUnirse, setPasswordUnirse] = useState('')
   const [passwordConfirm, setPasswordConfirm] = useState('')
   const [uniendose, setUniendose] = useState(false)
-
-  // FIX: guardamos codigo y familia pendientes para ejecutar unirseACopropiedad
-  // cuando user esté disponible en el contexto tras el registro
-  const pendienteRef = useRef<{ codigo: string; familia: string } | null>(null)
-
-  useEffect(() => {
-    if (user && pendienteRef.current) {
-      const pendiente = pendienteRef.current
-      pendienteRef.current = null
-      unirseACopropiedad(pendiente.codigo, pendiente.familia).catch(() => {
-        setErrorLocal('Cuenta creada pero error al unirse. Inténtalo de nuevo.')
-        setUniendose(false)
-      })
-    }
-  }, [user])
 
   if (loadingAuth || loadingCop) return <LoadingSpinner />
   if (user && tieneCopropiedad) return <Navigate to="/" />
@@ -100,14 +88,55 @@ export default function LoginPage() {
 
     setUniendose(true)
     setErrorLocal(null)
+
     try {
-      // Guardamos el pendiente ANTES de registrar para que el useEffect lo recoja
-      pendienteRef.current = { codigo: codigo.trim(), familia: familia.trim() }
-      await register(emailUnirse.trim(), passwordUnirse)
-      // El useEffect se encargará de llamar unirseACopropiedad cuando user esté listo
-    } catch (err) {
-      pendienteRef.current = null
-      setErrorLocal('Error al crear la cuenta. Inténtalo de nuevo.')
+      const codigoUpper = codigo.trim().toUpperCase()
+
+      // 1. Buscar la copropiedad por código ANTES de crear la cuenta
+      const snapshot = await getDocs(collection(db, 'copropiedades'))
+      let copropiedadId: string | null = null
+
+      for (const docSnap of snapshot.docs) {
+        const configRef = doc(db, 'copropiedades', docSnap.id, 'config', 'general')
+        const configSnap = await getDoc(configRef)
+        if (configSnap.exists() && configSnap.data()?.codigo === codigoUpper) {
+          copropiedadId = docSnap.id
+          break
+        }
+      }
+
+      if (!copropiedadId) {
+        setErrorLocal('Código de invitación no válido')
+        setUniendose(false)
+        return
+      }
+
+      // 2. Crear cuenta en Firebase Auth
+      const credencial = await createUserWithEmailAndPassword(auth, emailUnirse.trim(), passwordUnirse)
+      const nuevoUser = credencial.user
+
+      // 3. Crear perfil en Firestore con la copropiedad vinculada
+      await setDoc(doc(db, 'usuarios', nuevoUser.uid), {
+        uid: nuevoUser.uid,
+        email: nuevoUser.email ?? '',
+        copropiedadId,
+        familia: familia.trim(),
+        rol: 'copropietario',
+      })
+
+      // El AuthContext detectará el nuevo usuario y CopropiedadContext cargará el perfil
+      // con copropiedadId ya asignado → redirige al dashboard automáticamente
+
+    } catch (err: any) {
+      if (err.code === 'auth/email-already-in-use') {
+        setErrorLocal('Ese email ya está registrado')
+      } else if (err.code === 'auth/weak-password') {
+        setErrorLocal('La contraseña debe tener al menos 6 caracteres')
+      } else if (err.code === 'auth/invalid-email') {
+        setErrorLocal('El email no es válido')
+      } else {
+        setErrorLocal('Error al crear la cuenta. Inténtalo de nuevo.')
+      }
       setUniendose(false)
     }
   }
@@ -316,8 +345,8 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              {(errorLocal || errorCop) && (
-                <p className="text-red-600 text-sm">{errorLocal || errorCop}</p>
+              {errorLocal && (
+                <p className="text-red-600 text-sm">{errorLocal}</p>
               )}
 
               <button
@@ -419,8 +448,8 @@ export default function LoginPage() {
                 />
               </div>
 
-              {(errorLocal || errorAuth || errorCop) && (
-                <p className="text-red-600 text-sm">{errorLocal || errorAuth || errorCop}</p>
+              {errorLocal && (
+                <p className="text-red-600 text-sm">{errorLocal}</p>
               )}
 
               <button
