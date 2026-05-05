@@ -4,38 +4,40 @@ import { useAuthContext } from '../context/AuthContext'
 import { useCopropiedad } from '../context/CopropiedadContext'
 import LoadingSpinner from '../components/LoadingSpinner'
 import { createUserWithEmailAndPassword } from 'firebase/auth'
-import { auth, db } from '../api/firebase'
-import { collection, getDocs, doc, getDoc, setDoc } from 'firebase/firestore'
+import { auth } from '../api/firebase'
 
-type Vista = 'login' | 'crear' | 'unirse'
+type Vista = 'login' | 'crear' | 'registrarse' | 'unirse'
 
 const FAMILIAS_EJEMPLO = ['Familia 1', 'Familia 2']
 
 export default function LoginPage() {
   const { user, loading: loadingAuth, error: errorAuth, login, logout } = useAuthContext()
-  const { tieneCopropiedad, loading: loadingCop, crearCopropiedad } = useCopropiedad()
+  const { tieneCopropiedad, loading: loadingCop, crearCopropiedad, unirseACopropiedad } = useCopropiedad()
 
   const [vista, setVista] = useState<Vista>('login')
+  const [errorLocal, setErrorLocal] = useState<string | null>(null)
 
   // Login
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
+  // Registrarse (nuevo usuario sin cuenta)
+  const [emailReg, setEmailReg] = useState('')
+  const [passwordReg, setPasswordReg] = useState('')
+  const [passwordRegConfirm, setPasswordRegConfirm] = useState('')
+  const [registrando, setRegistrando] = useState(false)
+
   // Crear copropiedad
   const [nombre, setNombre] = useState('')
   const [familias, setFamilias] = useState<string[]>([''])
   const [sistemaTurnos, setSistemaTurnos] = useState<'rotacion' | 'calendario' | 'mixto'>('calendario')
   const [creando, setCreando] = useState(false)
-  const [errorLocal, setErrorLocal] = useState<string | null>(null)
   const enviandoRef = useRef(false)
 
-  // Unirse
+  // Unirse con código (ya autenticado)
   const [codigo, setCodigo] = useState('')
   const [familia, setFamilia] = useState('')
-  const [emailUnirse, setEmailUnirse] = useState('')
-  const [passwordUnirse, setPasswordUnirse] = useState('')
-  const [passwordConfirm, setPasswordConfirm] = useState('')
   const [uniendose, setUniendose] = useState(false)
 
   if (loadingAuth || loadingCop) return <LoadingSpinner />
@@ -46,6 +48,31 @@ export default function LoginPage() {
     setSubmitting(true)
     await login(email, password)
     setSubmitting(false)
+  }
+
+  const handleRegistrarse = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!emailReg.trim()) return setErrorLocal('El email es obligatorio')
+    if (passwordReg.length < 6) return setErrorLocal('La contraseña debe tener al menos 6 caracteres')
+    if (passwordReg !== passwordRegConfirm) return setErrorLocal('Las contraseñas no coinciden')
+
+    setRegistrando(true)
+    setErrorLocal(null)
+    try {
+      await createUserWithEmailAndPassword(auth, emailReg.trim(), passwordReg)
+      // Firebase Auth crea la sesión automáticamente
+      // CopropiedadContext detectará que no tiene copropiedad y mostrará la pantalla de bienvenido
+    } catch (err: any) {
+      if (err.code === 'auth/email-already-in-use') {
+        setErrorLocal('Ese email ya está registrado')
+      } else if (err.code === 'auth/invalid-email') {
+        setErrorLocal('El email no es válido')
+      } else {
+        setErrorLocal('Error al crear la cuenta. Inténtalo de nuevo.')
+      }
+    } finally {
+      setRegistrando(false)
+    }
   }
 
   const handleAñadirFamilia = () => setFamilias([...familias, ''])
@@ -81,73 +108,14 @@ export default function LoginPage() {
     e.preventDefault()
     if (!codigo.trim()) return setErrorLocal('El código es obligatorio')
     if (!familia.trim()) return setErrorLocal('Indica el nombre de tu familia')
-    if (!emailUnirse.trim()) return setErrorLocal('El email es obligatorio')
-    if (!passwordUnirse.trim()) return setErrorLocal('La contraseña es obligatoria')
-    if (passwordUnirse.length < 6) return setErrorLocal('La contraseña debe tener al menos 6 caracteres')
-    if (passwordUnirse !== passwordConfirm) return setErrorLocal('Las contraseñas no coinciden')
 
     setUniendose(true)
     setErrorLocal(null)
-
     try {
-      const codigoUpper = codigo.trim().toUpperCase()
-      console.log('🔍 Buscando código:', JSON.stringify(codigoUpper), 'longitud:', codigoUpper.length)
-
-      // 1. Buscar la copropiedad por código ANTES de crear la cuenta
-      const snapshot = await getDocs(collection(db, 'copropiedades'))
-      console.log('📦 Copropiedades encontradas:', snapshot.docs.length)
-      let copropiedadId: string | null = null
-
-      for (const docSnap of snapshot.docs) {
-        console.log('👀 Revisando copropiedad:', docSnap.id)
-        const configRef = doc(db, 'copropiedades', docSnap.id, 'config', 'general')
-        const configSnap = await getDoc(configRef)
-        console.log('📄 Config existe:', configSnap.exists(), '| codigo en Firestore:', JSON.stringify(configSnap.data()?.codigo))
-        if (configSnap.exists() && configSnap.data()?.codigo === codigoUpper) {
-          copropiedadId = docSnap.id
-          break
-        }
-      }
-
-      if (!copropiedadId) {
-        setErrorLocal('Código de invitación no válido')
-        setUniendose(false)
-        return
-      }
-
-      // 2. Crear cuenta en Firebase Auth
-      const credencial = await createUserWithEmailAndPassword(auth, emailUnirse.trim(), passwordUnirse)
-      const nuevoUser = credencial.user
-
-      // FIX: forzar refresh del token y esperar a que Firebase Auth lo propague
-      await nuevoUser.getIdToken(true)
-      await new Promise(resolve => setTimeout(resolve, 1500))
-
-      // 3. Crear perfil en Firestore con la copropiedad vinculada
-      await setDoc(doc(db, 'usuarios', nuevoUser.uid), {
-        uid: nuevoUser.uid,
-        email: nuevoUser.email ?? '',
-        copropiedadId,
-        familia: familia.trim(),
-        rol: 'copropietario',
-      })
-
-      // El AuthContext detectará el nuevo usuario y CopropiedadContext cargará el perfil
-      // con copropiedadId ya asignado → redirige al dashboard automáticamente
-
+      await unirseACopropiedad(codigo.trim(), familia.trim())
     } catch (err: any) {
-      console.error('ERROR UNIRSE:', err)
-      console.error('ERROR CODE:', err.code)
-      console.error('ERROR MESSAGE:', err.message)
-      if (err.code === 'auth/email-already-in-use') {
-        setErrorLocal('Ese email ya está registrado')
-      } else if (err.code === 'auth/weak-password') {
-        setErrorLocal('La contraseña debe tener al menos 6 caracteres')
-      } else if (err.code === 'auth/invalid-email') {
-        setErrorLocal('El email no es válido')
-      } else {
-        setErrorLocal(`Error: ${err.message || 'Inténtalo de nuevo.'}`)
-      }
+      setErrorLocal(err.message === 'Código no válido' ? 'Código de invitación no válido' : 'Error al unirse. Inténtalo de nuevo.')
+    } finally {
       setUniendose(false)
     }
   }
@@ -215,13 +183,13 @@ export default function LoginPage() {
 
             <div className="space-y-2">
               <button
-                onClick={() => setVista('crear')}
+                onClick={() => { setVista('crear'); setErrorLocal(null) }}
                 className="w-full py-2.5 px-4 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium text-sm"
               >
                 Crear nueva copropiedad
               </button>
               <button
-                onClick={() => setVista('unirse')}
+                onClick={() => { setVista('registrarse'); setErrorLocal(null) }}
                 className="w-full py-2.5 px-4 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium text-sm"
               >
                 Tengo código de invitación
@@ -230,7 +198,77 @@ export default function LoginPage() {
           </div>
         )}
 
-        {/* ── VISTA ONBOARDING (autenticado sin copropiedad) ── */}
+        {/* ── REGISTRARSE (paso 1 de unirse) ── */}
+        {!user && vista === 'registrarse' && (
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <button
+              onClick={() => { setVista('login'); setErrorLocal(null) }}
+              className="text-sm text-gray-400 hover:text-gray-600 mb-4 flex items-center gap-1"
+            >
+              ← Volver
+            </button>
+            <h2 className="text-lg font-semibold text-gray-800 mb-1">Crear tu cuenta</h2>
+            <p className="text-sm text-gray-500 mb-4">
+              Primero crea tu cuenta. Después podrás introducir el código de invitación para unirte a tu copropiedad.
+            </p>
+
+            <form onSubmit={handleRegistrarse} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input
+                  type="email"
+                  value={emailReg}
+                  onChange={e => setEmailReg(e.target.value)}
+                  placeholder="tu@email.com"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
+                <input
+                  type="password"
+                  value={passwordReg}
+                  onChange={e => setPasswordReg(e.target.value)}
+                  placeholder="Mínimo 6 caracteres"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Confirmar contraseña</label>
+                <input
+                  type="password"
+                  value={passwordRegConfirm}
+                  onChange={e => setPasswordRegConfirm(e.target.value)}
+                  placeholder="Repite la contraseña"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  required
+                />
+              </div>
+
+              {errorLocal && <p className="text-red-600 text-sm">{errorLocal}</p>}
+
+              <button
+                type="submit"
+                disabled={registrando}
+                className="w-full py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium"
+              >
+                {registrando ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                    </svg>
+                    Creando cuenta...
+                  </span>
+                ) : 'Crear cuenta'}
+              </button>
+            </form>
+          </div>
+        )}
+
+        {/* ── BIENVENIDO (autenticado sin copropiedad) ── */}
         {user && !tieneCopropiedad && vista === 'login' && (
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <div className="flex justify-between items-start mb-4">
@@ -246,20 +284,20 @@ export default function LoginPage() {
               </button>
             </div>
             <p className="text-sm text-gray-500 mb-6">
-              Tu cuenta está lista. Crea una nueva copropiedad o únete a una existente.
+              Tu cuenta está lista. Crea una nueva copropiedad o únete con tu código de invitación.
             </p>
             <div className="space-y-3">
               <button
-                onClick={() => setVista('crear')}
+                onClick={() => { setVista('crear'); setErrorLocal(null) }}
                 className="w-full py-3 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
               >
                 Crear nueva copropiedad
               </button>
               <button
-                onClick={() => setVista('unirse')}
+                onClick={() => { setVista('unirse'); setErrorLocal(null) }}
                 className="w-full py-3 px-4 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium"
               >
-                Unirme con código de invitación
+                Tengo código de invitación
               </button>
             </div>
           </div>
@@ -379,8 +417,8 @@ export default function LoginPage() {
           </div>
         )}
 
-        {/* ── UNIRSE CON CÓDIGO ── */}
-        {vista === 'unirse' && (
+        {/* ── UNIRSE CON CÓDIGO (ya autenticado) ── */}
+        {user && !tieneCopropiedad && vista === 'unirse' && (
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <button
               onClick={() => { setVista('login'); setErrorLocal(null) }}
@@ -390,71 +428,32 @@ export default function LoginPage() {
             </button>
             <h2 className="text-lg font-semibold text-gray-800 mb-1">Unirse a una copropiedad</h2>
             <p className="text-sm text-gray-500 mb-4">
-              Introduce el código que te ha compartido el administrador y crea tu cuenta.
+              Introduce el código que te ha compartido el administrador y el nombre de tu familia.
             </p>
 
             <form onSubmit={handleUnirse} className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Código de invitación
-                  </label>
-                  <input
-                    type="text"
-                    value={codigo}
-                    onChange={e => setCodigo(e.target.value.toUpperCase())}
-                    placeholder="Ej: ABC123"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono tracking-widest"
-                    maxLength={6}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Tu familia
-                  </label>
-                  <input
-                    type="text"
-                    value={familia}
-                    onChange={e => setFamilia(e.target.value)}
-                    placeholder="Ej: Charo"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div className="flex-1 h-px bg-gray-200" />
-                <span className="text-xs text-gray-400">Crea tu cuenta</span>
-                <div className="flex-1 h-px bg-gray-200" />
-              </div>
-
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Código de invitación
+                </label>
                 <input
-                  type="email"
-                  value={emailUnirse}
-                  onChange={e => setEmailUnirse(e.target.value)}
-                  placeholder="tu@email.com"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  type="text"
+                  value={codigo}
+                  onChange={e => setCodigo(e.target.value.toUpperCase())}
+                  placeholder="Ej: ABC123"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono tracking-widest"
+                  maxLength={6}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Tu familia
+                </label>
                 <input
-                  type="password"
-                  value={passwordUnirse}
-                  onChange={e => setPasswordUnirse(e.target.value)}
-                  placeholder="Mínimo 6 caracteres"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Confirmar contraseña</label>
-                <input
-                  type="password"
-                  value={passwordConfirm}
-                  onChange={e => setPasswordConfirm(e.target.value)}
-                  placeholder="Repite la contraseña"
+                  type="text"
+                  value={familia}
+                  onChange={e => setFamilia(e.target.value)}
+                  placeholder="Ej: Charo, JManuel..."
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                 />
               </div>
@@ -474,9 +473,9 @@ export default function LoginPage() {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
                     </svg>
-                    Creando cuenta...
+                    Uniéndome...
                   </span>
-                ) : 'Crear cuenta y unirme'}
+                ) : 'Unirme a la copropiedad'}
               </button>
             </form>
           </div>
