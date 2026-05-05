@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuthContext } from '../context/AuthContext'
 import { useCopropiedad } from '../context/CopropiedadContext'
@@ -39,6 +39,13 @@ export default function LoginPage() {
   const [codigo, setCodigo] = useState('')
   const [familia, setFamilia] = useState('')
   const [uniendose, setUniendose] = useState(false)
+
+  // Cuando user aparece tras registro, volver a vista login para mostrar "Bienvenido"
+  useEffect(() => {
+    if (user && !tieneCopropiedad) {
+      setVista('login')
+    }
+  }, [user, tieneCopropiedad])
 
   if (loadingAuth || loadingCop) return <LoadingSpinner />
   if (user && tieneCopropiedad) return <Navigate to="/" />
