@@ -119,8 +119,9 @@ export default function LoginPage() {
       const credencial = await createUserWithEmailAndPassword(auth, emailUnirse.trim(), passwordUnirse)
       const nuevoUser = credencial.user
 
-      // FIX: forzar refresh del token para que Firestore lo reconozca
+      // FIX: forzar refresh del token y esperar a que Firebase Auth lo propague
       await nuevoUser.getIdToken(true)
+      await new Promise(resolve => setTimeout(resolve, 1500))
 
       // 3. Crear perfil en Firestore con la copropiedad vinculada
       await setDoc(doc(db, 'usuarios', nuevoUser.uid), {
