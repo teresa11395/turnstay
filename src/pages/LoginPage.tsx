@@ -128,6 +128,9 @@ export default function LoginPage() {
       // con copropiedadId ya asignado → redirige al dashboard automáticamente
 
     } catch (err: any) {
+      console.error('ERROR UNIRSE:', err)
+      console.error('ERROR CODE:', err.code)
+      console.error('ERROR MESSAGE:', err.message)
       if (err.code === 'auth/email-already-in-use') {
         setErrorLocal('Ese email ya está registrado')
       } else if (err.code === 'auth/weak-password') {
@@ -135,7 +138,7 @@ export default function LoginPage() {
       } else if (err.code === 'auth/invalid-email') {
         setErrorLocal('El email no es válido')
       } else {
-        setErrorLocal('Error al crear la cuenta. Inténtalo de nuevo.')
+        setErrorLocal(`Error: ${err.message || 'Inténtalo de nuevo.'}`)
       }
       setUniendose(false)
     }
