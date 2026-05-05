@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
-import { db } from '../api/firebase'
+import { db, auth } from '../api/firebase'
 import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore'
 import { useAuthContext } from './AuthContext'
 
@@ -112,9 +112,10 @@ export function CopropiedadProvider({ children }: { children: ReactNode }) {
   }
 
   const unirseACopropiedad = async (codigo: string, familia: string) => {
-    // FIX: no dependemos de perfil — usamos user.uid directamente
-    // Esto permite que funcione justo después de register() cuando perfil aún es null
-    if (!user) throw new Error('No hay usuario autenticado')
+    // FIX: usar auth.currentUser directamente en lugar del user del contexto
+    // El contexto puede no estar actualizado justo después del registro
+    const currentUser = auth.currentUser
+    if (!currentUser) throw new Error('No hay usuario autenticado')
 
     const codigoUpper = codigo.trim().toUpperCase()
 
@@ -135,16 +136,15 @@ export function CopropiedadProvider({ children }: { children: ReactNode }) {
       throw new Error('Código no válido')
     }
 
-    // Construir perfil nuevo sin depender del perfil en memoria
     const perfilActualizado: PerfilUsuario = {
-      uid: user.uid,
-      email: user.email ?? '',
+      uid: currentUser.uid,
+      email: currentUser.email ?? '',
       copropiedadId,
       familia,
       rol: 'copropietario',
     }
 
-    await setDoc(doc(db, 'usuarios', user.uid), perfilActualizado)
+    await setDoc(doc(db, 'usuarios', currentUser.uid), perfilActualizado)
     setPerfil(perfilActualizado)
   }
 
