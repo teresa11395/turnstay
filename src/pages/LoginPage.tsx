@@ -91,14 +91,18 @@ export default function LoginPage() {
 
     try {
       const codigoUpper = codigo.trim().toUpperCase()
+      console.log('🔍 Buscando código:', JSON.stringify(codigoUpper), 'longitud:', codigoUpper.length)
 
       // 1. Buscar la copropiedad por código ANTES de crear la cuenta
       const snapshot = await getDocs(collection(db, 'copropiedades'))
+      console.log('📦 Copropiedades encontradas:', snapshot.docs.length)
       let copropiedadId: string | null = null
 
       for (const docSnap of snapshot.docs) {
+        console.log('👀 Revisando copropiedad:', docSnap.id)
         const configRef = doc(db, 'copropiedades', docSnap.id, 'config', 'general')
         const configSnap = await getDoc(configRef)
+        console.log('📄 Config existe:', configSnap.exists(), '| codigo en Firestore:', JSON.stringify(configSnap.data()?.codigo))
         if (configSnap.exists() && configSnap.data()?.codigo === codigoUpper) {
           copropiedadId = docSnap.id
           break
@@ -114,6 +118,9 @@ export default function LoginPage() {
       // 2. Crear cuenta en Firebase Auth
       const credencial = await createUserWithEmailAndPassword(auth, emailUnirse.trim(), passwordUnirse)
       const nuevoUser = credencial.user
+
+      // FIX: forzar refresh del token para que Firestore lo reconozca
+      await nuevoUser.getIdToken(true)
 
       // 3. Crear perfil en Firestore con la copropiedad vinculada
       await setDoc(doc(db, 'usuarios', nuevoUser.uid), {
