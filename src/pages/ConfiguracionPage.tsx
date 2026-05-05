@@ -79,10 +79,6 @@ export default function ConfiguracionPage() {
       setError('La tarifa no puede ser negativa')
       return
     }
-    if (sistemaTurnos === 'rotacion' && periodos.length === 0) {
-      setError('Define al menos un período para el sistema de rotación')
-      return
-    }
 
     setError(null)
     setGuardando(true)
