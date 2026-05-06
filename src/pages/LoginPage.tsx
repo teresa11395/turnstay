@@ -32,6 +32,9 @@ export default function LoginPage() {
   const [nombre, setNombre] = useState('')
   const [familias, setFamilias] = useState<string[]>([''])
   const [sistemaTurnos, setSistemaTurnos] = useState<'rotacion' | 'calendario' | 'mixto'>('calendario')
+  const [emailCrear, setEmailCrear] = useState('')
+  const [passwordCrear, setPasswordCrear] = useState('')
+  const [passwordCrearConfirm, setPasswordCrearConfirm] = useState('')
   const [creando, setCreando] = useState(false)
   const enviandoRef = useRef(false)
 
@@ -99,13 +102,32 @@ export default function LoginPage() {
     const familiasValidas = familias.filter(f => f.trim())
     if (familiasValidas.length === 0) return setErrorLocal('Añade al menos una familia')
 
+    // Si no hay sesión, validar y crear cuenta primero
+    if (!user) {
+      if (!emailCrear.trim()) return setErrorLocal('El email es obligatorio')
+      if (passwordCrear.length < 6) return setErrorLocal('La contraseña debe tener al menos 6 caracteres')
+      if (passwordCrear !== passwordCrearConfirm) return setErrorLocal('Las contraseñas no coinciden')
+    }
+
     enviandoRef.current = true
     setCreando(true)
     setErrorLocal(null)
     try {
+      // Si no hay sesión, crear cuenta primero
+      if (!user) {
+        await createUserWithEmailAndPassword(auth, emailCrear.trim(), passwordCrear)
+        // Firebase Auth crea la sesión — esperamos a que el contexto se actualice
+        await new Promise(resolve => setTimeout(resolve, 500))
+      }
       await crearCopropiedad(nombre.trim(), familiasValidas, sistemaTurnos)
-    } catch (err) {
-      setErrorLocal('Error al crear la copropiedad')
+    } catch (err: any) {
+      if (err.code === 'auth/email-already-in-use') {
+        setErrorLocal('Ese email ya está registrado')
+      } else if (err.code === 'auth/invalid-email') {
+        setErrorLocal('El email no es válido')
+      } else {
+        setErrorLocal('Error al crear la copropiedad')
+      }
       enviandoRef.current = false
       setCreando(false)
     }
@@ -400,6 +422,50 @@ export default function LoginPage() {
                   </button>
                 </div>
               </div>
+
+              {/* Email y contraseña — solo si no hay sesión activa */}
+              {!user && (
+                <>
+                  <div className="flex items-center gap-3 pt-2">
+                    <div className="flex-1 h-px bg-gray-200" />
+                    <span className="text-xs text-gray-400">Tu cuenta de administrador</span>
+                    <div className="flex-1 h-px bg-gray-200" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <input
+                      type="email"
+                      value={emailCrear}
+                      onChange={e => setEmailCrear(e.target.value)}
+                      placeholder="tu@email.com"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      disabled={creando}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
+                    <input
+                      type="password"
+                      value={passwordCrear}
+                      onChange={e => setPasswordCrear(e.target.value)}
+                      placeholder="Mínimo 6 caracteres"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      disabled={creando}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Confirmar contraseña</label>
+                    <input
+                      type="password"
+                      value={passwordCrearConfirm}
+                      onChange={e => setPasswordCrearConfirm(e.target.value)}
+                      placeholder="Repite la contraseña"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      disabled={creando}
+                    />
+                  </div>
+                </>
+              )}
 
               {errorLocal && (
                 <p className="text-red-600 text-sm">{errorLocal}</p>
