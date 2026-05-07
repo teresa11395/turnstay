@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useConfigContext } from '../context/ConfigContext'
+import { useCopropiedad } from '../context/CopropiedadContext'
 import type { Periodo } from '../context/ConfigContext'
 import LoadingSpinner from '../components/LoadingSpinner'
 
 export default function ConfiguracionPage() {
   const { config, loading, updateConfig } = useConfigContext()
+  const { perfil } = useCopropiedad()
+  const esAdmin = perfil?.rol === 'admin'
 
   const [nombrePropiedad, setNombrePropiedad] = useState('')
   const [familias, setFamilias] = useState<string[]>([])
@@ -113,8 +116,8 @@ export default function ConfiguracionPage() {
 
       <div className="space-y-6">
 
-        {/* Código de invitación */}
-        {config?.codigo && (
+        {/* Código de invitación — solo para admins */}
+        {esAdmin && config?.codigo && (
           <div className="bg-blue-50 rounded-xl border border-blue-200 p-5">
             <h2 className="text-base font-semibold text-blue-800 mb-1">Código de invitación</h2>
             <p className="text-xs text-blue-600 mb-3">

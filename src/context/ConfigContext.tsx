@@ -5,7 +5,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { useCopropiedad } from './CopropiedadContext'
 
 export interface Periodo {
-  nombre: string  // ej: "Enero", "Julio 1ª quincena", "Semana Santa"
+  nombre: string
 }
 
 export interface Config {
@@ -14,7 +14,8 @@ export interface Config {
   tarifaDiaria: number
   cuotaAnual: number
   sistemaTurnos?: 'rotacion' | 'calendario' | 'mixto'
-  periodos?: Periodo[]  // solo para copropiedades con sistemaTurnos === 'rotacion'
+  periodos?: Periodo[]
+  codigo?: string  // código de invitación — solo lectura, no se modifica desde la UI
 }
 
 interface ConfigContextType {
@@ -30,13 +31,11 @@ const defaultConfig: Config = {
   tarifaDiaria: 0,
   cuotaAnual: 0,
   sistemaTurnos: 'rotacion',
-  // sin periodos → useTurnos usará el algoritmo clásico de Casa Playa
 }
 
 const ConfigContext = createContext<ConfigContextType | null>(null)
 
 export function ConfigProvider({ children }: { children: ReactNode }) {
-  // FIX: también leemos loading de CopropiedadContext para saber cuándo está listo el perfil
   const { perfil, loading: loadingPerfil } = useCopropiedad()
   const copropiedadId = perfil?.copropiedadId
   const [config, setConfig] = useState<Config | null>(null)
@@ -44,8 +43,6 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    // FIX: esperar a que CopropiedadContext haya terminado de cargar el perfil
-    // Si no esperamos, copropiedadId puede ser null aunque el usuario sí tenga copropiedad
     if (loadingPerfil) return
 
     if (!copropiedadId) {
@@ -74,14 +71,18 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     }
 
     fetchConfig()
-  }, [copropiedadId, loadingPerfil]) // FIX: loadingPerfil como dependencia
+  }, [copropiedadId, loadingPerfil])
 
   const updateConfig = async (newConfig: Config) => {
     if (!copropiedadId) return
     try {
       setError(null)
-      await setDoc(doc(db, 'copropiedades', copropiedadId, 'config', 'general'), newConfig)
-      setConfig(newConfig)
+      // Preservar el codigo existente — no se sobreescribe al guardar la configuración
+      const configConCodigo = config?.codigo
+        ? { ...newConfig, codigo: config.codigo }
+        : newConfig
+      await setDoc(doc(db, 'copropiedades', copropiedadId, 'config', 'general'), configConCodigo)
+      setConfig(configConCodigo)
     } catch (err) {
       setError('Error al guardar la configuración')
     }
