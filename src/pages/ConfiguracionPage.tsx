@@ -3,11 +3,13 @@ import { useConfigContext } from '../context/ConfigContext'
 import { useCopropiedad } from '../context/CopropiedadContext'
 import type { Periodo } from '../context/ConfigContext'
 import LoadingSpinner from '../components/LoadingSpinner'
+import { useUsuarios } from '../hooks/useUsuarios'
 
 export default function ConfiguracionPage() {
   const { config, loading, updateConfig } = useConfigContext()
   const { perfil } = useCopropiedad()
   const esAdmin = perfil?.rol === 'admin'
+  const { usuarios, cambiarRol } = useUsuarios()
 
   const [nombrePropiedad, setNombrePropiedad] = useState('')
   const [familias, setFamilias] = useState<string[]>([])
@@ -310,6 +312,40 @@ export default function ConfiguracionPage() {
             </div>
           </div>
         </div>
+
+        {/* Gestión de usuarios — solo para admins */}
+        {esAdmin && usuarios.length > 0 && (
+          <div className="bg-white rounded-xl border border-gray-200 p-5">
+            <h2 className="text-base font-semibold text-gray-700 mb-3">Usuarios registrados</h2>
+            <div className="space-y-3">
+              {usuarios.map(u => (
+                <div key={u.uid} className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">{u.familia ?? u.email}</p>
+                    <p className="text-xs text-gray-400">{u.email}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                      u.rol === 'admin'
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      {u.rol === 'admin' ? 'Administrador' : 'Copropietario'}
+                    </span>
+                    {u.uid !== perfil?.uid && (
+                      <button
+                        onClick={() => cambiarRol(u.uid, u.rol === 'admin' ? 'copropietario' : 'admin')}
+                        className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                      >
+                        {u.rol === 'admin' ? 'Quitar admin' : 'Hacer admin'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Error */}
         {error && (
