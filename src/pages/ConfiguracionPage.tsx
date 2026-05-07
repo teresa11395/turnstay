@@ -17,6 +17,14 @@ export default function ConfiguracionPage() {
   const [guardando, setGuardando] = useState(false)
   const [guardado, setGuardado] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [copiado, setCopiado] = useState(false)
+
+  const handleCopiarCodigo = () => {
+    if (!config?.codigo) return
+    navigator.clipboard.writeText(config.codigo)
+    setCopiado(true)
+    setTimeout(() => setCopiado(false), 2000)
+  }
 
   useEffect(() => {
     if (config) {
@@ -104,6 +112,27 @@ export default function ConfiguracionPage() {
       <h1 className="text-2xl font-bold text-gray-800 mb-6">Configuración</h1>
 
       <div className="space-y-6">
+
+        {/* Código de invitación */}
+        {config?.codigo && (
+          <div className="bg-blue-50 rounded-xl border border-blue-200 p-5">
+            <h2 className="text-base font-semibold text-blue-800 mb-1">Código de invitación</h2>
+            <p className="text-xs text-blue-600 mb-3">
+              Comparte este código con las familias que quieras invitar a la copropiedad.
+            </p>
+            <div className="flex items-center gap-3">
+              <span className="text-2xl font-bold tracking-widest text-blue-900 bg-white px-4 py-2 rounded-lg border border-blue-200 font-mono">
+                {config.codigo}
+              </span>
+              <button
+                onClick={handleCopiarCodigo}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors"
+              >
+                {copiado ? '✓ Copiado' : 'Copiar'}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Nombre de la propiedad */}
         <div className="bg-white rounded-xl border border-gray-200 p-5">
