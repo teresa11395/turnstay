@@ -12,9 +12,9 @@ TurnStay utiliza **testing manual exploratorio** sobre el entorno de producción
 |---|---|
 | URL producción | https://turnstay.vercel.app |
 | Base de datos | Firebase Firestore (modo producción) |
-| Usuarios de prueba | `tborrajo@hotmail.com` (MTere, admin, cop_casaplaya) |
-| | `tborrajogdv@gmail.com` (Charo, copropietario, cop_casaplaya) |
-| | `niamdos@gmail.com` (admin, cop_1777444716808 — Casa Montaña) |
+| Usuarios de prueba | Admin de cop_casaplaya (rol: admin) |
+| | Copropietario de cop_casaplaya (rol: copropietario) |
+| | Admin de cop_1777444716808 — Casa Montaña (rol: admin) |
 
 ---
 
@@ -142,3 +142,40 @@ TurnStay utiliza **testing manual exploratorio** sobre el entorno de producción
 | Familias hardcodeadas en useTurnos | useTurnos usaba siempre las 8 familias de Casa Playa | Ahora lee familias del ConfigContext |
 | Perfiles de usuario intercambiados | Los roles admin/copropietario estaban asignados al revés en Firestore | Corregido directamente en Firestore |
 | config/general en raíz de Firestore | Documento antiguo de la arquitectura anterior | Eliminado de Firestore |
+
+---
+
+### 11. Registro e invitaciones
+
+| ID | Caso | Resultado esperado | Estado |
+|---|---|---|---|
+| REG-01 | Crear cuenta nueva con email y contraseña | Cuenta creada en Firebase Auth y pantalla Bienvenido aparece automáticamente | ✅ |
+| REG-02 | Unirse a copropiedad con código válido | Perfil vinculado y redirige al dashboard | ✅ |
+| REG-03 | Unirse con código inválido | Muestra error "Código de invitación no válido" | ✅ |
+| REG-04 | Registro con email ya existente | Muestra error "Ese email ya está registrado" | ✅ |
+| REG-05 | Contraseñas no coinciden | Muestra error de validación | ✅ |
+| REG-06 | Crear copropiedad desde el login sin sesión | Crea cuenta y copropiedad en un solo flujo | ✅ |
+| REG-07 | Botón cerrar sesión en pantalla Bienvenido | Cierra sesión y vuelve al login | ✅ |
+
+---
+
+### 12. Sistema de rotación genérico
+
+| ID | Caso | Resultado esperado | Estado |
+|---|---|---|---|
+| ROT-01 | Crear copropiedad con rotación y definir períodos | Períodos guardados en Firestore | ✅ |
+| ROT-02 | Calendario muestra períodos definidos repartidos entre familias | Algoritmo de rotación funciona correctamente | ✅ |
+| ROT-03 | Guardar configuración sin períodos (algoritmo clásico) | Guarda sin error | ✅ |
+| ROT-04 | Cambiar número de familias en configuración | Turnos se recalculan con el nuevo número | ✅ |
+
+---
+
+## Bugs adicionales encontrados y resueltos
+
+| Bug | Descripción | Solución |
+|---|---|---|
+| Timing entre Firebase Auth y Firestore | Al registrarse, Firestore denegaba escritura porque el token aún no estaba propagado | Flujo separado en dos pasos: primero registro, luego vinculación con código |
+| Documento config/general con espacio en ID | cop_casaplaya tenía el documento `general ` (con espacio) en lugar de `general` | Recreado el documento con el ID correcto |
+| Tarifas hardcodeadas en OcupacionForm | El formulario siempre usaba 12€/día independientemente de la copropiedad | Ahora lee tarifaDiaria del ConfigContext |
+| Botón "Crear nueva copropiedad" sin sesión | Fallaba porque crearCopropiedad requiere usuario autenticado | El formulario incluye campos de email y contraseña cuando no hay sesión activa |
+| Campo codigo ausente en cop_casaplaya | La copropiedad original no tenía campo codigo en config/general | Añadido manualmente en Firestore |

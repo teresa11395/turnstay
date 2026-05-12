@@ -43,9 +43,10 @@ export default function LoginPage() {
   const [familia, setFamilia] = useState('')
   const [uniendose, setUniendose] = useState(false)
 
-  // Cuando user aparece tras registro, volver a vista login para mostrar "Bienvenido"
+  // CORRECCIÓN: solo resetear a 'login' si la vista actual no es 'crear' ni 'unirse'
+  // Antes el useEffect reseteaba la vista aunque el usuario hubiera pulsado "Crear nueva copropiedad"
   useEffect(() => {
-    if (user && !tieneCopropiedad) {
+    if (user && !tieneCopropiedad && vista === 'login') {
       setVista('login')
     }
   }, [user, tieneCopropiedad])
@@ -193,125 +194,52 @@ export default function LoginPage() {
                 />
               </div>
 
-              {errorAuth && <p className="text-red-600 text-sm">{errorAuth}</p>}
+              {(errorAuth || errorLocal) && (
+                <p className="text-red-600 text-sm">{errorAuth || errorLocal}</p>
+              )}
 
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full py-2.5 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium"
+                className="w-full py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium"
               >
                 {submitting ? 'Accediendo...' : 'Acceder'}
               </button>
             </form>
 
-            <div className="flex items-center gap-3 my-5">
-              <div className="flex-1 h-px bg-gray-200" />
-              <span className="text-xs text-gray-400">¿Primera vez?</span>
-              <div className="flex-1 h-px bg-gray-200" />
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <p className="text-xs text-gray-400 text-center mb-3">¿Primera vez?</p>
+              <div className="space-y-2">
+                <button
+                  onClick={() => { setVista('crear'); setErrorLocal(null) }}
+                  className="w-full py-2.5 px-4 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium"
+                >
+                  Crear nueva copropiedad
+                </button>
+                <button
+                  onClick={() => { setVista('registrarse'); setErrorLocal(null) }}
+                  className="w-full py-2.5 px-4 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium"
+                >
+                  Tengo código de invitación
+                </button>
+              </div>
             </div>
-
-            <div className="space-y-2">
-              <button
-                onClick={() => { setVista('crear'); setErrorLocal(null) }}
-                className="w-full py-2.5 px-4 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium text-sm"
-              >
-                Crear nueva copropiedad
-              </button>
-              <button
-                onClick={() => { setVista('registrarse'); setErrorLocal(null) }}
-                className="w-full py-2.5 px-4 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium text-sm"
-              >
-                Tengo código de invitación
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ── REGISTRARSE (paso 1 de unirse) ── */}
-        {!user && vista === 'registrarse' && (
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <button
-              onClick={() => { setVista('login'); setErrorLocal(null) }}
-              className="text-sm text-gray-400 hover:text-gray-600 mb-4 flex items-center gap-1"
-            >
-              ← Volver
-            </button>
-            <h2 className="text-lg font-semibold text-gray-800 mb-1">Crear tu cuenta</h2>
-            <p className="text-sm text-gray-500 mb-4">
-              Primero crea tu cuenta. Después podrás introducir el código de invitación para unirte a tu copropiedad.
-            </p>
-
-            <form onSubmit={handleRegistrarse} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                <input
-                  type="email"
-                  value={emailReg}
-                  onChange={e => setEmailReg(e.target.value)}
-                  placeholder="tu@email.com"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
-                <input
-                  type="password"
-                  value={passwordReg}
-                  onChange={e => setPasswordReg(e.target.value)}
-                  placeholder="Mínimo 6 caracteres"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Confirmar contraseña</label>
-                <input
-                  type="password"
-                  value={passwordRegConfirm}
-                  onChange={e => setPasswordRegConfirm(e.target.value)}
-                  placeholder="Repite la contraseña"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                  required
-                />
-              </div>
-
-              {errorLocal && <p className="text-red-600 text-sm">{errorLocal}</p>}
-
-              <button
-                type="submit"
-                disabled={registrando}
-                className="w-full py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium"
-              >
-                {registrando ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                    </svg>
-                    Creando cuenta...
-                  </span>
-                ) : 'Crear cuenta'}
-              </button>
-            </form>
           </div>
         )}
 
         {/* ── BIENVENIDO (autenticado sin copropiedad) ── */}
         {user && !tieneCopropiedad && vista === 'login' && (
           <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-800">Bienvenido</h2>
-                <p className="text-xs text-gray-400 mt-0.5">{user.email}</p>
-              </div>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-800">Bienvenido</h2>
               <button
                 onClick={logout}
-                className="text-xs text-red-500 border border-red-200 px-2.5 py-1.5 rounded-lg hover:bg-red-50 font-medium"
+                className="text-sm text-red-500 hover:text-red-600 border border-red-200 px-3 py-1 rounded-lg"
               >
                 Cerrar sesión
               </button>
             </div>
+            <p className="text-sm text-gray-500 mb-1">{user.email}</p>
             <p className="text-sm text-gray-500 mb-6">
               Tu cuenta está lista. Crea una nueva copropiedad o únete con tu código de invitación.
             </p>
@@ -329,6 +257,62 @@ export default function LoginPage() {
                 Tengo código de invitación
               </button>
             </div>
+          </div>
+        )}
+
+        {/* ── REGISTRARSE (nuevo usuario con código) ── */}
+        {!user && vista === 'registrarse' && (
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <button
+              onClick={() => { setVista('login'); setErrorLocal(null) }}
+              className="text-sm text-gray-400 hover:text-gray-600 mb-4 flex items-center gap-1"
+            >
+              ← Volver
+            </button>
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">Crear cuenta</h2>
+            <form onSubmit={handleRegistrarse} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input
+                  type="email"
+                  value={emailReg}
+                  onChange={e => setEmailReg(e.target.value)}
+                  placeholder="tu@email.com"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  disabled={registrando}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
+                <input
+                  type="password"
+                  value={passwordReg}
+                  onChange={e => setPasswordReg(e.target.value)}
+                  placeholder="Mínimo 6 caracteres"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  disabled={registrando}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Confirmar contraseña</label>
+                <input
+                  type="password"
+                  value={passwordRegConfirm}
+                  onChange={e => setPasswordRegConfirm(e.target.value)}
+                  placeholder="Repite la contraseña"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  disabled={registrando}
+                />
+              </div>
+              {errorLocal && <p className="text-red-600 text-sm">{errorLocal}</p>}
+              <button
+                type="submit"
+                disabled={registrando}
+                className="w-full py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium"
+              >
+                {registrando ? 'Creando cuenta...' : 'Crear cuenta'}
+              </button>
+            </form>
           </div>
         )}
 
@@ -365,7 +349,8 @@ export default function LoginPage() {
                 <div className="space-y-2">
                   {[
                     { value: 'calendario', label: '📅 Calendario libre', desc: 'Cada familia reserva los días que quiere' },
-                    { value: 'rotacion', label: '🔄 Rotación fija', desc: 'Turnos por períodos automáticos' },
+                    { value: 'rotacion', label: '🔄 Rotación fija', desc: 'Turnos por periodos automáticos' },
+                    { value: 'mixto', label: '⚖️ Mixto', desc: 'Rotación base + reservas libres' },
                   ].map(op => (
                     <div
                       key={op.value}
