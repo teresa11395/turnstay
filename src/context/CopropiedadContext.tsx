@@ -17,6 +17,7 @@ interface CopropiedadContextType {
   loading: boolean
   error: string | null
   tieneCopropiedad: boolean
+  esCreadoPor: boolean
   crearCopropiedad: (nombre: string, familias: string[], sistemaTurnos: 'rotacion' | 'calendario' | 'mixto') => Promise<string>
   unirseACopropiedad: (codigo: string, familia: string) => Promise<void>
   buscarFamiliasPorCodigo: (codigo: string) => Promise<string[]>
@@ -28,6 +29,7 @@ const CopropiedadContext = createContext<CopropiedadContextType | null>(null)
 export function CopropiedadProvider({ children }: { children: ReactNode }) {
   const { user } = useAuthContext()
   const [perfil, setPerfil] = useState<PerfilUsuario | null>(null)
+  const [creadoPor, setCreadoPor] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const creandoRef = useRef(false)
@@ -35,6 +37,7 @@ export function CopropiedadProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!user) {
       setPerfil(null)
+      setCreadoPor(null)
       setLoading(false)
       return
     }
@@ -46,18 +49,29 @@ export function CopropiedadProvider({ children }: { children: ReactNode }) {
         const docRef = doc(db, 'usuarios', user.uid)
         const docSnap = await getDoc(docRef)
 
+        let perfilData: PerfilUsuario
         if (docSnap.exists()) {
-          setPerfil(docSnap.data() as PerfilUsuario)
+          perfilData = docSnap.data() as PerfilUsuario
+          setPerfil(perfilData)
         } else {
-          const perfilNuevo: PerfilUsuario = {
+          perfilData = {
             uid: user.uid,
             email: user.email ?? '',
             copropiedadId: null,
             familia: null,
             rol: 'copropietario',
           }
-          await setDoc(docRef, perfilNuevo)
-          setPerfil(perfilNuevo)
+          await setDoc(docRef, perfilData)
+          setPerfil(perfilData)
+        }
+
+        // Cargar quién creó la copropiedad
+        if (perfilData.copropiedadId) {
+          const copRef = doc(db, 'copropiedades', perfilData.copropiedadId)
+          const copSnap = await getDoc(copRef)
+          if (copSnap.exists()) {
+            setCreadoPor(copSnap.data()?.creadoPor ?? null)
+          }
         }
       } catch (err) {
         setError('Error al cargar el perfil de usuario')
@@ -82,9 +96,11 @@ export function CopropiedadProvider({ children }: { children: ReactNode }) {
     try {
       const copropiedadId = `cop_${Date.now()}`
 
+      // Guardamos creadoPor para restringir quién puede eliminar
       await setDoc(doc(db, 'copropiedades', copropiedadId), {
         nombre,
         creadaEn: new Date().toISOString(),
+        creadoPor: user.uid,
       })
 
       await setDoc(doc(db, 'copropiedades', copropiedadId, 'config', 'general'), {
@@ -106,6 +122,7 @@ export function CopropiedadProvider({ children }: { children: ReactNode }) {
 
       await setDoc(doc(db, 'usuarios', user.uid), perfilActualizado)
       setPerfil(perfilActualizado)
+      setCreadoPor(user.uid)
 
       return copropiedadId
     } finally {
@@ -164,10 +181,15 @@ export function CopropiedadProvider({ children }: { children: ReactNode }) {
   const eliminarCopropiedad = async () => {
     if (!perfil?.copropiedadId) throw new Error('No hay copropiedad activa')
     if (perfil.rol !== 'admin') throw new Error('Solo el administrador puede eliminar la copropiedad')
+    if (creadoPor !== user?.uid) throw new Error('Solo el creador de la copropiedad puede eliminarla')
 
     const copropiedadId = perfil.copropiedadId
 
-    // 1. Borrar todas las subcolecciones conocidas
+    // 1. Leer el nombre ANTES de borrar nada
+    const configSnap = await getDoc(doc(db, 'copropiedades', copropiedadId, 'config', 'general'))
+    const nombreCopropiedad = configSnap.data()?.nombrePropiedad ?? copropiedadId
+
+    // 2. Borrar todas las subcolecciones
     const subcolecciones = ['config', 'ocupaciones', 'gastos', 'incidencias', 'cesiones']
     for (const subcoleccion of subcolecciones) {
       const snapshot = await getDocs(collection(db, 'copropiedades', copropiedadId, subcoleccion))
@@ -176,11 +198,10 @@ export function CopropiedadProvider({ children }: { children: ReactNode }) {
       if (snapshot.docs.length > 0) await batch.commit()
     }
 
-    // 2. Borrar el documento principal de la copropiedad
+    // 3. Borrar el documento principal
     await deleteDoc(doc(db, 'copropiedades', copropiedadId))
 
-    // 3. Desvincular a todos los usuarios de esta copropiedad y marcarlos para borrado manual
-    const nombreCopropiedad = (await getDoc(doc(db, 'copropiedades', copropiedadId, 'config', 'general'))).data()?.nombrePropiedad ?? copropiedadId
+    // 4. Desvincular usuarios y marcarlos como pendiente de borrado
     const usuariosSnapshot = await getDocs(collection(db, 'usuarios'))
     const batch = writeBatch(db)
     usuariosSnapshot.docs.forEach(d => {
@@ -197,8 +218,9 @@ export function CopropiedadProvider({ children }: { children: ReactNode }) {
     })
     await batch.commit()
 
-    // 4. Actualizar el perfil local
+    // 5. Actualizar perfil local
     setPerfil(prev => prev ? { ...prev, copropiedadId: null, familia: null, rol: 'copropietario' } : null)
+    setCreadoPor(null)
   }
 
   return (
@@ -207,6 +229,7 @@ export function CopropiedadProvider({ children }: { children: ReactNode }) {
       loading,
       error,
       tieneCopropiedad: !!perfil?.copropiedadId,
+      esCreadoPor: creadoPor === user?.uid,
       crearCopropiedad,
       unirseACopropiedad,
       buscarFamiliasPorCodigo,

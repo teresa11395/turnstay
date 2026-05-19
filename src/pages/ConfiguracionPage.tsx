@@ -7,7 +7,7 @@ import { useUsuarios } from '../hooks/useUsuarios'
 
 export default function ConfiguracionPage() {
   const { config, loading, updateConfig } = useConfigContext()
-  const { perfil, eliminarCopropiedad } = useCopropiedad()
+  const { perfil, eliminarCopropiedad, esCreadoPor } = useCopropiedad()
   const esAdmin = perfil?.rol === 'admin'
   const { usuarios, cambiarRol } = useUsuarios()
 
@@ -370,8 +370,8 @@ export default function ConfiguracionPage() {
           {guardando ? 'Guardando...' : guardado ? '✓ Guardado' : 'Guardar configuración'}
         </button>
 
-        {/* ── ZONA DE PELIGRO — solo admin ── */}
-        {esAdmin && (
+        {/* ── ZONA DE PELIGRO — solo el creador de la copropiedad ── */}
+        {esCreadoPor && (
           <div className="bg-red-50 rounded-xl border border-red-200 p-5 mt-4">
             <h2 className="text-base font-semibold text-red-700 mb-1">Zona de peligro</h2>
             <p className="text-xs text-red-500 mb-4">
