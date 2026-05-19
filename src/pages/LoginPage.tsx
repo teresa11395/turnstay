@@ -6,7 +6,8 @@ import LoadingSpinner from '../components/LoadingSpinner'
 import { createUserWithEmailAndPassword } from 'firebase/auth'
 import { auth } from '../api/firebase'
 
-type Vista = 'login' | 'crear' | 'registrarse' | 'unirse'
+// Eliminada la vista 'registrarse' — ahora el flujo de código incluye la creación de cuenta
+type Vista = 'login' | 'crear' | 'unirse'
 
 const FAMILIAS_EJEMPLO = ['Familia 1', 'Familia 2']
 
@@ -22,12 +23,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  // Registrarse (nuevo usuario sin cuenta)
-  const [emailReg, setEmailReg] = useState('')
-  const [passwordReg, setPasswordReg] = useState('')
-  const [passwordRegConfirm, setPasswordRegConfirm] = useState('')
-  const [registrando, setRegistrando] = useState(false)
-
   // Crear copropiedad
   const [nombre, setNombre] = useState('')
   const [familias, setFamilias] = useState<string[]>([''])
@@ -38,15 +33,17 @@ export default function LoginPage() {
   const [creando, setCreando] = useState(false)
   const enviandoRef = useRef(false)
 
-  // Unirse con código — flujo en dos pasos
+  // Unirse con código — flujo: código → familia → cuenta (si no logueado) → unirse
   const [codigo, setCodigo] = useState('')
   const [familiasDisponibles, setFamiliasDisponibles] = useState<string[]>([])
   const [familia, setFamilia] = useState('')
   const [buscandoCodigo, setBuscandoCodigo] = useState(false)
   const [codigoVerificado, setCodigoVerificado] = useState(false)
+  const [emailUnirse, setEmailUnirse] = useState('')
+  const [passwordUnirse, setPasswordUnirse] = useState('')
+  const [passwordUnirseConfirm, setPasswordUnirseConfirm] = useState('')
   const [uniendose, setUniendose] = useState(false)
 
-  // Solo resetear a 'login' si la vista actual es 'login'
   useEffect(() => {
     if (user && !tieneCopropiedad && vista === 'login') {
       setVista('login')
@@ -56,34 +53,22 @@ export default function LoginPage() {
   if (loadingAuth || loadingCop) return <LoadingSpinner />
   if (user && tieneCopropiedad) return <Navigate to="/" />
 
+  const resetUnirse = () => {
+    setCodigo('')
+    setFamilia('')
+    setFamiliasDisponibles([])
+    setCodigoVerificado(false)
+    setEmailUnirse('')
+    setPasswordUnirse('')
+    setPasswordUnirseConfirm('')
+    setErrorLocal(null)
+  }
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setSubmitting(true)
     await login(email, password)
     setSubmitting(false)
-  }
-
-  const handleRegistrarse = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!emailReg.trim()) return setErrorLocal('El email es obligatorio')
-    if (passwordReg.length < 6) return setErrorLocal('La contraseña debe tener al menos 6 caracteres')
-    if (passwordReg !== passwordRegConfirm) return setErrorLocal('Las contraseñas no coinciden')
-
-    setRegistrando(true)
-    setErrorLocal(null)
-    try {
-      await createUserWithEmailAndPassword(auth, emailReg.trim(), passwordReg)
-    } catch (err: any) {
-      if (err.code === 'auth/email-already-in-use') {
-        setErrorLocal('Ese email ya está registrado')
-      } else if (err.code === 'auth/invalid-email') {
-        setErrorLocal('El email no es válido')
-      } else {
-        setErrorLocal('Error al crear la cuenta. Inténtalo de nuevo.')
-      }
-    } finally {
-      setRegistrando(false)
-    }
   }
 
   const handleAñadirFamilia = () => setFamilias([...familias, ''])
@@ -102,7 +87,6 @@ export default function LoginPage() {
     if (!nombre.trim()) return setErrorLocal('El nombre es obligatorio')
     const familiasValidas = familias.filter(f => f.trim())
     if (familiasValidas.length === 0) return setErrorLocal('Añade al menos una familia')
-
     if (!user) {
       if (!emailCrear.trim()) return setErrorLocal('El email es obligatorio')
       if (passwordCrear.length < 6) return setErrorLocal('La contraseña debe tener al menos 6 caracteres')
@@ -131,7 +115,7 @@ export default function LoginPage() {
     }
   }
 
-  // Paso 1: verificar código y cargar familias disponibles
+  // Paso 1: verificar código y cargar familias
   const handleBuscarCodigo = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!codigo.trim()) return setErrorLocal('El código es obligatorio')
@@ -147,24 +131,42 @@ export default function LoginPage() {
       setFamiliasDisponibles(familiasList)
       setFamilia(familiasList[0])
       setCodigoVerificado(true)
-    } catch (err: any) {
+    } catch {
       setErrorLocal('Código de invitación no válido')
     } finally {
       setBuscandoCodigo(false)
     }
   }
 
-  // Paso 2: unirse con la familia seleccionada
+  // Paso 2: crear cuenta si no hay sesión y unirse
   const handleUnirse = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!familia.trim()) return setErrorLocal('Selecciona tu familia')
 
+    // Si no hay sesión, validar campos de cuenta
+    if (!user) {
+      if (!emailUnirse.trim()) return setErrorLocal('El email es obligatorio')
+      if (passwordUnirse.length < 6) return setErrorLocal('La contraseña debe tener al menos 6 caracteres')
+      if (passwordUnirse !== passwordUnirseConfirm) return setErrorLocal('Las contraseñas no coinciden')
+    }
+
     setUniendose(true)
     setErrorLocal(null)
     try {
+      // Si no hay sesión, crear cuenta primero
+      if (!user) {
+        await createUserWithEmailAndPassword(auth, emailUnirse.trim(), passwordUnirse)
+        await new Promise(resolve => setTimeout(resolve, 500))
+      }
       await unirseACopropiedad(codigo.trim(), familia.trim())
     } catch (err: any) {
-      setErrorLocal(err.message === 'Código no válido' ? 'Código de invitación no válido' : 'Error al unirse. Inténtalo de nuevo.')
+      if (err.code === 'auth/email-already-in-use') {
+        setErrorLocal('Ese email ya está registrado')
+      } else if (err.code === 'auth/invalid-email') {
+        setErrorLocal('El email no es válido')
+      } else {
+        setErrorLocal(err.message === 'Código no válido' ? 'Código de invitación no válido' : 'Error al unirse. Inténtalo de nuevo.')
+      }
     } finally {
       setUniendose(false)
     }
@@ -209,11 +211,9 @@ export default function LoginPage() {
                   required
                 />
               </div>
-
               {(errorAuth || errorLocal) && (
                 <p className="text-red-600 text-sm">{errorAuth || errorLocal}</p>
               )}
-
               <button
                 type="submit"
                 disabled={submitting}
@@ -233,7 +233,7 @@ export default function LoginPage() {
                   Crear nueva copropiedad
                 </button>
                 <button
-                  onClick={() => { setVista('registrarse'); setErrorLocal(null) }}
+                  onClick={() => { setVista('unirse'); setErrorLocal(null) }}
                   className="w-full py-2.5 px-4 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium"
                 >
                   Tengo código de invitación
@@ -273,62 +273,6 @@ export default function LoginPage() {
                 Tengo código de invitación
               </button>
             </div>
-          </div>
-        )}
-
-        {/* ── REGISTRARSE (nuevo usuario con código) ── */}
-        {!user && vista === 'registrarse' && (
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <button
-              onClick={() => { setVista('login'); setErrorLocal(null) }}
-              className="text-sm text-gray-400 hover:text-gray-600 mb-4 flex items-center gap-1"
-            >
-              ← Volver
-            </button>
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">Crear cuenta</h2>
-            <form onSubmit={handleRegistrarse} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                <input
-                  type="email"
-                  value={emailReg}
-                  onChange={e => setEmailReg(e.target.value)}
-                  placeholder="tu@email.com"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                  disabled={registrando}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
-                <input
-                  type="password"
-                  value={passwordReg}
-                  onChange={e => setPasswordReg(e.target.value)}
-                  placeholder="Mínimo 6 caracteres"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                  disabled={registrando}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Confirmar contraseña</label>
-                <input
-                  type="password"
-                  value={passwordRegConfirm}
-                  onChange={e => setPasswordRegConfirm(e.target.value)}
-                  placeholder="Repite la contraseña"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                  disabled={registrando}
-                />
-              </div>
-              {errorLocal && <p className="text-red-600 text-sm">{errorLocal}</p>}
-              <button
-                type="submit"
-                disabled={registrando}
-                className="w-full py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium"
-              >
-                {registrando ? 'Creando cuenta...' : 'Crear cuenta'}
-              </button>
-            </form>
           </div>
         )}
 
@@ -484,14 +428,7 @@ export default function LoginPage() {
         {vista === 'unirse' && (
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <button
-              onClick={() => {
-                setVista('login')
-                setErrorLocal(null)
-                setCodigo('')
-                setFamilia('')
-                setFamiliasDisponibles([])
-                setCodigoVerificado(false)
-              }}
+              onClick={() => { setVista('login'); resetUnirse() }}
               className="text-sm text-gray-400 hover:text-gray-600 mb-4 flex items-center gap-1"
             >
               ← Volver
@@ -516,9 +453,7 @@ export default function LoginPage() {
                     disabled={buscandoCodigo}
                   />
                 </div>
-
                 {errorLocal && <p className="text-red-600 text-sm">{errorLocal}</p>}
-
                 <button
                   type="submit"
                   disabled={buscandoCodigo}
@@ -537,7 +472,7 @@ export default function LoginPage() {
               </form>
             )}
 
-            {/* Paso 2: seleccionar familia y unirse */}
+            {/* Paso 2: seleccionar familia + cuenta si no logueado */}
             {codigoVerificado && (
               <form onSubmit={handleUnirse} className="space-y-4">
                 <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2">
@@ -560,6 +495,50 @@ export default function LoginPage() {
                     ))}
                   </select>
                 </div>
+
+                {/* Campos de cuenta — solo si no hay sesión activa */}
+                {!user && (
+                  <>
+                    <div className="flex items-center gap-3 pt-1">
+                      <div className="flex-1 h-px bg-gray-200" />
+                      <span className="text-xs text-gray-400">Tu cuenta</span>
+                      <div className="flex-1 h-px bg-gray-200" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                      <input
+                        type="email"
+                        value={emailUnirse}
+                        onChange={e => setEmailUnirse(e.target.value)}
+                        placeholder="tu@email.com"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                        disabled={uniendose}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
+                      <input
+                        type="password"
+                        value={passwordUnirse}
+                        onChange={e => setPasswordUnirse(e.target.value)}
+                        placeholder="Mínimo 6 caracteres"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                        disabled={uniendose}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Confirmar contraseña</label>
+                      <input
+                        type="password"
+                        value={passwordUnirseConfirm}
+                        onChange={e => setPasswordUnirseConfirm(e.target.value)}
+                        placeholder="Repite la contraseña"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                        disabled={uniendose}
+                      />
+                    </div>
+                  </>
+                )}
 
                 {errorLocal && <p className="text-red-600 text-sm">{errorLocal}</p>}
 
