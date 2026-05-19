@@ -179,12 +179,20 @@ export function CopropiedadProvider({ children }: { children: ReactNode }) {
     // 2. Borrar el documento principal de la copropiedad
     await deleteDoc(doc(db, 'copropiedades', copropiedadId))
 
-    // 3. Desvincular a todos los usuarios de esta copropiedad
+    // 3. Desvincular a todos los usuarios de esta copropiedad y marcarlos para borrado manual
+    const nombreCopropiedad = (await getDoc(doc(db, 'copropiedades', copropiedadId, 'config', 'general'))).data()?.nombrePropiedad ?? copropiedadId
     const usuariosSnapshot = await getDocs(collection(db, 'usuarios'))
     const batch = writeBatch(db)
     usuariosSnapshot.docs.forEach(d => {
       if (d.data().copropiedadId === copropiedadId) {
-        batch.update(d.ref, { copropiedadId: null, familia: null, rol: 'copropietario' })
+        batch.update(d.ref, {
+          copropiedadId: null,
+          familia: null,
+          rol: 'copropietario',
+          pendienteBorrado: true,
+          copropiedadEliminada: nombreCopropiedad,
+          fechaDesvinculacion: new Date().toISOString().split('T')[0],
+        })
       }
     })
     await batch.commit()
