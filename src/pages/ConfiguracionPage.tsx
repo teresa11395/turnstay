@@ -7,7 +7,7 @@ import { useUsuarios } from '../hooks/useUsuarios'
 
 export default function ConfiguracionPage() {
   const { config, loading, updateConfig } = useConfigContext()
-  const { perfil } = useCopropiedad()
+  const { perfil, eliminarCopropiedad } = useCopropiedad()
   const esAdmin = perfil?.rol === 'admin'
   const { usuarios, cambiarRol } = useUsuarios()
 
@@ -23,6 +23,12 @@ export default function ConfiguracionPage() {
   const [guardado, setGuardado] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [copiado, setCopiado] = useState(false)
+
+  // Borrado de copropiedad
+  const [mostrarConfirmacion, setMostrarConfirmacion] = useState(false)
+  const [textoConfirmacion, setTextoConfirmacion] = useState('')
+  const [borrando, setBorrando] = useState(false)
+  const [errorBorrado, setErrorBorrado] = useState<string | null>(null)
 
   const handleCopiarCodigo = () => {
     if (!config?.codigo) return
@@ -108,6 +114,22 @@ export default function ConfiguracionPage() {
     setGuardando(false)
     setGuardado(true)
     setTimeout(() => setGuardado(false), 2500)
+  }
+
+  const handleEliminarCopropiedad = async () => {
+    if (textoConfirmacion !== nombrePropiedad) {
+      setErrorBorrado('El nombre no coincide')
+      return
+    }
+
+    setBorrando(true)
+    setErrorBorrado(null)
+    try {
+      await eliminarCopropiedad()
+    } catch (err: any) {
+      setErrorBorrado(err.message || 'Error al eliminar la copropiedad')
+      setBorrando(false)
+    }
   }
 
   if (loading) return <LoadingSpinner />
@@ -230,12 +252,9 @@ export default function ConfiguracionPage() {
             </label>
           </div>
 
-          {/* Períodos — solo si eligen rotación */}
           {sistemaTurnos === 'rotacion' && (
             <div className="border-t border-gray-100 pt-4 mt-2">
-              <p className="text-sm font-medium text-gray-600 mb-3">
-                Períodos de la copropiedad
-              </p>
+              <p className="text-sm font-medium text-gray-600 mb-3">Períodos de la copropiedad</p>
 
               {periodos.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-3">
@@ -248,7 +267,6 @@ export default function ConfiguracionPage() {
                       <button
                         onClick={() => handleEliminarPeriodo(p.nombre)}
                         className="text-blue-400 hover:text-red-500 transition-colors leading-none"
-                        title={`Eliminar ${p.nombre}`}
                       >
                         ×
                       </button>
@@ -283,12 +301,9 @@ export default function ConfiguracionPage() {
         {/* Tarifas */}
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <h2 className="text-base font-semibold text-gray-700 mb-3">Tarifas</h2>
-
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">
-                Tarifa mínima por día (€)
-              </label>
+              <label className="block text-sm font-medium text-gray-600 mb-1">Tarifa mínima por día (€)</label>
               <input
                 type="number"
                 min={0}
@@ -299,9 +314,7 @@ export default function ConfiguracionPage() {
               <p className="text-xs text-gray-400 mt-1">Base: 6€/persona/día</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">
-                Cuota anual por familia (€)
-              </label>
+              <label className="block text-sm font-medium text-gray-600 mb-1">Cuota anual por familia (€)</label>
               <input
                 type="number"
                 min={0}
@@ -326,9 +339,7 @@ export default function ConfiguracionPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                      u.rol === 'admin'
-                        ? 'bg-blue-100 text-blue-700'
-                        : 'bg-gray-100 text-gray-600'
+                      u.rol === 'admin' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
                     }`}>
                       {u.rol === 'admin' ? 'Administrador' : 'Copropietario'}
                     </span>
@@ -348,9 +359,7 @@ export default function ConfiguracionPage() {
         )}
 
         {/* Error */}
-        {error && (
-          <p className="text-red-600 text-sm">{error}</p>
-        )}
+        {error && <p className="text-red-600 text-sm">{error}</p>}
 
         {/* Botón guardar */}
         <button
@@ -360,6 +369,59 @@ export default function ConfiguracionPage() {
         >
           {guardando ? 'Guardando...' : guardado ? '✓ Guardado' : 'Guardar configuración'}
         </button>
+
+        {/* ── ZONA DE PELIGRO — solo admin ── */}
+        {esAdmin && (
+          <div className="bg-red-50 rounded-xl border border-red-200 p-5 mt-4">
+            <h2 className="text-base font-semibold text-red-700 mb-1">Zona de peligro</h2>
+            <p className="text-xs text-red-500 mb-4">
+              Estas acciones son irreversibles. Procede con precaución.
+            </p>
+
+            {!mostrarConfirmacion ? (
+              <button
+                onClick={() => setMostrarConfirmacion(true)}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium"
+              >
+                Eliminar copropiedad
+              </button>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm text-red-700">
+                  Esta acción eliminará <strong>todos los datos</strong> de la copropiedad (ocupaciones, gastos, incidencias, cesiones) y desvinculará a todos los usuarios. Esta acción <strong>no se puede deshacer</strong>.
+                </p>
+                <p className="text-sm text-red-700">
+                  Para confirmar, escribe el nombre de la copropiedad: <strong>{nombrePropiedad}</strong>
+                </p>
+                <input
+                  type="text"
+                  value={textoConfirmacion}
+                  onChange={e => { setTextoConfirmacion(e.target.value); setErrorBorrado(null) }}
+                  placeholder={`Escribe "${nombrePropiedad}" para confirmar`}
+                  className="w-full px-3 py-2 border border-red-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-sm"
+                  disabled={borrando}
+                />
+                {errorBorrado && <p className="text-red-600 text-sm">{errorBorrado}</p>}
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => { setMostrarConfirmacion(false); setTextoConfirmacion(''); setErrorBorrado(null) }}
+                    disabled={borrando}
+                    className="flex-1 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium disabled:opacity-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleEliminarCopropiedad}
+                    disabled={borrando || textoConfirmacion !== nombrePropiedad}
+                    className="flex-1 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {borrando ? 'Eliminando...' : 'Eliminar definitivamente'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
       </div>
     </div>

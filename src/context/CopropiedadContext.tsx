@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { db, auth } from '../api/firebase'
-import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore'
+import { doc, getDoc, setDoc, collection, getDocs, deleteDoc, writeBatch } from 'firebase/firestore'
 import { useAuthContext } from './AuthContext'
 
 export interface PerfilUsuario {
@@ -20,6 +20,7 @@ interface CopropiedadContextType {
   crearCopropiedad: (nombre: string, familias: string[], sistemaTurnos: 'rotacion' | 'calendario' | 'mixto') => Promise<string>
   unirseACopropiedad: (codigo: string, familia: string) => Promise<void>
   buscarFamiliasPorCodigo: (codigo: string) => Promise<string[]>
+  eliminarCopropiedad: () => Promise<void>
 }
 
 const CopropiedadContext = createContext<CopropiedadContextType | null>(null)
@@ -112,7 +113,6 @@ export function CopropiedadProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // Nueva función: busca las familias disponibles para un código de invitación
   const buscarFamiliasPorCodigo = async (codigo: string): Promise<string[]> => {
     const codigoUpper = codigo.trim().toUpperCase()
     const snapshot = await getDocs(collection(db, 'copropiedades'))
@@ -161,6 +161,38 @@ export function CopropiedadProvider({ children }: { children: ReactNode }) {
     setPerfil(perfilActualizado)
   }
 
+  const eliminarCopropiedad = async () => {
+    if (!perfil?.copropiedadId) throw new Error('No hay copropiedad activa')
+    if (perfil.rol !== 'admin') throw new Error('Solo el administrador puede eliminar la copropiedad')
+
+    const copropiedadId = perfil.copropiedadId
+
+    // 1. Borrar todas las subcolecciones conocidas
+    const subcolecciones = ['config', 'ocupaciones', 'gastos', 'incidencias', 'cesiones']
+    for (const subcoleccion of subcolecciones) {
+      const snapshot = await getDocs(collection(db, 'copropiedades', copropiedadId, subcoleccion))
+      const batch = writeBatch(db)
+      snapshot.docs.forEach(d => batch.delete(d.ref))
+      if (snapshot.docs.length > 0) await batch.commit()
+    }
+
+    // 2. Borrar el documento principal de la copropiedad
+    await deleteDoc(doc(db, 'copropiedades', copropiedadId))
+
+    // 3. Desvincular a todos los usuarios de esta copropiedad
+    const usuariosSnapshot = await getDocs(collection(db, 'usuarios'))
+    const batch = writeBatch(db)
+    usuariosSnapshot.docs.forEach(d => {
+      if (d.data().copropiedadId === copropiedadId) {
+        batch.update(d.ref, { copropiedadId: null, familia: null, rol: 'copropietario' })
+      }
+    })
+    await batch.commit()
+
+    // 4. Actualizar el perfil local
+    setPerfil(prev => prev ? { ...prev, copropiedadId: null, familia: null, rol: 'copropietario' } : null)
+  }
+
   return (
     <CopropiedadContext.Provider value={{
       perfil,
@@ -170,6 +202,7 @@ export function CopropiedadProvider({ children }: { children: ReactNode }) {
       crearCopropiedad,
       unirseACopropiedad,
       buscarFamiliasPorCodigo,
+      eliminarCopropiedad,
     }}>
       {children}
     </CopropiedadContext.Provider>
