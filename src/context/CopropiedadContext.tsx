@@ -19,6 +19,7 @@ interface CopropiedadContextType {
   tieneCopropiedad: boolean
   crearCopropiedad: (nombre: string, familias: string[], sistemaTurnos: 'rotacion' | 'calendario' | 'mixto') => Promise<string>
   unirseACopropiedad: (codigo: string, familia: string) => Promise<void>
+  buscarFamiliasPorCodigo: (codigo: string) => Promise<string[]>
 }
 
 const CopropiedadContext = createContext<CopropiedadContextType | null>(null)
@@ -111,15 +112,27 @@ export function CopropiedadProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  // Nueva función: busca las familias disponibles para un código de invitación
+  const buscarFamiliasPorCodigo = async (codigo: string): Promise<string[]> => {
+    const codigoUpper = codigo.trim().toUpperCase()
+    const snapshot = await getDocs(collection(db, 'copropiedades'))
+
+    for (const docSnap of snapshot.docs) {
+      const configRef = doc(db, 'copropiedades', docSnap.id, 'config', 'general')
+      const configSnap = await getDoc(configRef)
+      if (configSnap.exists() && configSnap.data()?.codigo === codigoUpper) {
+        return configSnap.data()?.familias ?? []
+      }
+    }
+
+    throw new Error('Código no válido')
+  }
+
   const unirseACopropiedad = async (codigo: string, familia: string) => {
-    // FIX: usar auth.currentUser directamente en lugar del user del contexto
-    // El contexto puede no estar actualizado justo después del registro
     const currentUser = auth.currentUser
     if (!currentUser) throw new Error('No hay usuario autenticado')
 
     const codigoUpper = codigo.trim().toUpperCase()
-
-    // Buscar la copropiedad por el campo 'codigo' en su config/general
     const snapshot = await getDocs(collection(db, 'copropiedades'))
 
     let copropiedadId: string | null = null
@@ -156,6 +169,7 @@ export function CopropiedadProvider({ children }: { children: ReactNode }) {
       tieneCopropiedad: !!perfil?.copropiedadId,
       crearCopropiedad,
       unirseACopropiedad,
+      buscarFamiliasPorCodigo,
     }}>
       {children}
     </CopropiedadContext.Provider>

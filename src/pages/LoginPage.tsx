@@ -12,7 +12,7 @@ const FAMILIAS_EJEMPLO = ['Familia 1', 'Familia 2']
 
 export default function LoginPage() {
   const { user, loading: loadingAuth, error: errorAuth, login, logout } = useAuthContext()
-  const { tieneCopropiedad, loading: loadingCop, crearCopropiedad, unirseACopropiedad } = useCopropiedad()
+  const { tieneCopropiedad, loading: loadingCop, crearCopropiedad, unirseACopropiedad, buscarFamiliasPorCodigo } = useCopropiedad()
 
   const [vista, setVista] = useState<Vista>('login')
   const [errorLocal, setErrorLocal] = useState<string | null>(null)
@@ -38,13 +38,15 @@ export default function LoginPage() {
   const [creando, setCreando] = useState(false)
   const enviandoRef = useRef(false)
 
-  // Unirse con código (ya autenticado)
+  // Unirse con código — flujo en dos pasos
   const [codigo, setCodigo] = useState('')
+  const [familiasDisponibles, setFamiliasDisponibles] = useState<string[]>([])
   const [familia, setFamilia] = useState('')
+  const [buscandoCodigo, setBuscandoCodigo] = useState(false)
+  const [codigoVerificado, setCodigoVerificado] = useState(false)
   const [uniendose, setUniendose] = useState(false)
 
-  // CORRECCIÓN: solo resetear a 'login' si la vista actual no es 'crear' ni 'unirse'
-  // Antes el useEffect reseteaba la vista aunque el usuario hubiera pulsado "Crear nueva copropiedad"
+  // Solo resetear a 'login' si la vista actual es 'login'
   useEffect(() => {
     if (user && !tieneCopropiedad && vista === 'login') {
       setVista('login')
@@ -71,8 +73,6 @@ export default function LoginPage() {
     setErrorLocal(null)
     try {
       await createUserWithEmailAndPassword(auth, emailReg.trim(), passwordReg)
-      // Firebase Auth crea la sesión automáticamente
-      // CopropiedadContext detectará que no tiene copropiedad y mostrará la pantalla de bienvenido
     } catch (err: any) {
       if (err.code === 'auth/email-already-in-use') {
         setErrorLocal('Ese email ya está registrado')
@@ -103,7 +103,6 @@ export default function LoginPage() {
     const familiasValidas = familias.filter(f => f.trim())
     if (familiasValidas.length === 0) return setErrorLocal('Añade al menos una familia')
 
-    // Si no hay sesión, validar y crear cuenta primero
     if (!user) {
       if (!emailCrear.trim()) return setErrorLocal('El email es obligatorio')
       if (passwordCrear.length < 6) return setErrorLocal('La contraseña debe tener al menos 6 caracteres')
@@ -114,10 +113,8 @@ export default function LoginPage() {
     setCreando(true)
     setErrorLocal(null)
     try {
-      // Si no hay sesión, crear cuenta primero
       if (!user) {
         await createUserWithEmailAndPassword(auth, emailCrear.trim(), passwordCrear)
-        // Firebase Auth crea la sesión — esperamos a que el contexto se actualice
         await new Promise(resolve => setTimeout(resolve, 500))
       }
       await crearCopropiedad(nombre.trim(), familiasValidas, sistemaTurnos)
@@ -134,10 +131,33 @@ export default function LoginPage() {
     }
   }
 
-  const handleUnirse = async (e: React.FormEvent) => {
+  // Paso 1: verificar código y cargar familias disponibles
+  const handleBuscarCodigo = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!codigo.trim()) return setErrorLocal('El código es obligatorio')
-    if (!familia.trim()) return setErrorLocal('Indica el nombre de tu familia')
+
+    setBuscandoCodigo(true)
+    setErrorLocal(null)
+    try {
+      const familiasList = await buscarFamiliasPorCodigo(codigo.trim())
+      if (familiasList.length === 0) {
+        setErrorLocal('Esta copropiedad no tiene familias configuradas')
+        return
+      }
+      setFamiliasDisponibles(familiasList)
+      setFamilia(familiasList[0])
+      setCodigoVerificado(true)
+    } catch (err: any) {
+      setErrorLocal('Código de invitación no válido')
+    } finally {
+      setBuscandoCodigo(false)
+    }
+  }
+
+  // Paso 2: unirse con la familia seleccionada
+  const handleUnirse = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!familia.trim()) return setErrorLocal('Selecciona tu familia')
 
     setUniendose(true)
     setErrorLocal(null)
@@ -168,9 +188,7 @@ export default function LoginPage() {
 
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Correo electrónico
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Correo electrónico</label>
                 <input
                   type="email"
                   value={email}
@@ -181,9 +199,7 @@ export default function LoginPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Contraseña
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
                 <input
                   type="password"
                   value={password}
@@ -329,9 +345,7 @@ export default function LoginPage() {
 
             <form onSubmit={handleCrear} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Nombre de la propiedad
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre de la propiedad</label>
                 <input
                   type="text"
                   value={nombre}
@@ -343,9 +357,7 @@ export default function LoginPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Sistema de turnos
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Sistema de turnos</label>
                 <div className="space-y-2">
                   {[
                     { value: 'calendario', label: '📅 Calendario libre', desc: 'Cada familia reserva los días que quiere' },
@@ -358,9 +370,7 @@ export default function LoginPage() {
                       className={`p-3 rounded-lg border transition-colors ${
                         creando ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
                       } ${
-                        sistemaTurnos === op.value
-                          ? 'bg-blue-50 border-blue-300'
-                          : 'border-gray-200 hover:bg-gray-50'
+                        sistemaTurnos === op.value ? 'bg-blue-50 border-blue-300' : 'border-gray-200 hover:bg-gray-50'
                       }`}
                     >
                       <p className="text-sm font-medium text-gray-800">{op.label}</p>
@@ -371,9 +381,7 @@ export default function LoginPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Familias copropietarias
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Familias copropietarias</label>
                 <div className="space-y-2">
                   {familias.map((f, i) => (
                     <div key={i} className="flex gap-2">
@@ -408,7 +416,6 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              {/* Email y contraseña — solo si no hay sesión activa */}
               {!user && (
                 <>
                   <div className="flex items-center gap-3 pt-2">
@@ -452,9 +459,7 @@ export default function LoginPage() {
                 </>
               )}
 
-              {errorLocal && (
-                <p className="text-red-600 text-sm">{errorLocal}</p>
-              )}
+              {errorLocal && <p className="text-red-600 text-sm">{errorLocal}</p>}
 
               <button
                 type="submit"
@@ -475,67 +480,114 @@ export default function LoginPage() {
           </div>
         )}
 
-        {/* ── UNIRSE CON CÓDIGO (ya autenticado) ── */}
-        {user && !tieneCopropiedad && vista === 'unirse' && (
+        {/* ── UNIRSE CON CÓDIGO ── */}
+        {vista === 'unirse' && (
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <button
-              onClick={() => { setVista('login'); setErrorLocal(null) }}
+              onClick={() => {
+                setVista('login')
+                setErrorLocal(null)
+                setCodigo('')
+                setFamilia('')
+                setFamiliasDisponibles([])
+                setCodigoVerificado(false)
+              }}
               className="text-sm text-gray-400 hover:text-gray-600 mb-4 flex items-center gap-1"
             >
               ← Volver
             </button>
             <h2 className="text-lg font-semibold text-gray-800 mb-1">Unirse a una copropiedad</h2>
             <p className="text-sm text-gray-500 mb-4">
-              Introduce el código que te ha compartido el administrador y el nombre de tu familia.
+              Introduce el código que te ha compartido el administrador.
             </p>
 
-            <form onSubmit={handleUnirse} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Código de invitación
-                </label>
-                <input
-                  type="text"
-                  value={codigo}
-                  onChange={e => setCodigo(e.target.value.toUpperCase())}
-                  placeholder="Ej: ABC123"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono tracking-widest"
-                  maxLength={6}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Tu familia
-                </label>
-                <input
-                  type="text"
-                  value={familia}
-                  onChange={e => setFamilia(e.target.value)}
-                  placeholder="Ej: Charo, JManuel..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                />
-              </div>
+            {/* Paso 1: introducir código */}
+            {!codigoVerificado && (
+              <form onSubmit={handleBuscarCodigo} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Código de invitación</label>
+                  <input
+                    type="text"
+                    value={codigo}
+                    onChange={e => { setCodigo(e.target.value.toUpperCase()); setErrorLocal(null) }}
+                    placeholder="Ej: ABC123"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono tracking-widest"
+                    maxLength={6}
+                    disabled={buscandoCodigo}
+                  />
+                </div>
 
-              {errorLocal && (
-                <p className="text-red-600 text-sm">{errorLocal}</p>
-              )}
+                {errorLocal && <p className="text-red-600 text-sm">{errorLocal}</p>}
 
-              <button
-                type="submit"
-                disabled={uniendose}
-                className="w-full py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium"
-              >
-                {uniendose ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                    </svg>
-                    Uniéndome...
-                  </span>
-                ) : 'Unirme a la copropiedad'}
-              </button>
-            </form>
+                <button
+                  type="submit"
+                  disabled={buscandoCodigo}
+                  className="w-full py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium"
+                >
+                  {buscandoCodigo ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                      </svg>
+                      Buscando...
+                    </span>
+                  ) : 'Buscar copropiedad'}
+                </button>
+              </form>
+            )}
+
+            {/* Paso 2: seleccionar familia y unirse */}
+            {codigoVerificado && (
+              <form onSubmit={handleUnirse} className="space-y-4">
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2">
+                  <svg className="h-4 w-4 text-green-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <p className="text-sm text-green-700 font-medium">Código válido — selecciona tu familia</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Tu familia</label>
+                  <select
+                    value={familia}
+                    onChange={e => setFamilia(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white"
+                    disabled={uniendose}
+                  >
+                    {familiasDisponibles.map(f => (
+                      <option key={f} value={f}>{f}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {errorLocal && <p className="text-red-600 text-sm">{errorLocal}</p>}
+
+                <button
+                  type="submit"
+                  disabled={uniendose}
+                  className="w-full py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium"
+                >
+                  {uniendose ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                      </svg>
+                      Uniéndome...
+                    </span>
+                  ) : 'Unirme a la copropiedad'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => { setCodigoVerificado(false); setCodigo(''); setFamiliasDisponibles([]); setErrorLocal(null) }}
+                  className="w-full py-2 text-sm text-gray-400 hover:text-gray-600"
+                >
+                  Cambiar código
+                </button>
+              </form>
+            )}
           </div>
         )}
 
